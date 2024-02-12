@@ -1,73 +1,74 @@
-CREATE TABLE "User_statistics" (
-  "User_ID" integer,
+CREATE TABLE "user_statistics" (
+  "user_id" integer,
   "Total_Distance_walked" integer,
   "Totl_Distance_cycled" integer,
   "Cycle_Streak" integer,
   "Walking_streak" integer,
   "Completed_trips" integer
 );
-
 CREATE TABLE "users" (
-  "User_ID" integer PRIMARY KEY,
-  "Name" varchar,
-  "Email" varchar UNIQUE NOT NULL,
-  "Password" varchar NOT NULL,
+  "user_id" SERIAL PRIMARY KEY,
+  "first_name" varchar,
+  "last_name" varchar,
+  "email" varchar UNIQUE NOT NULL,
+  "password" varchar NOT NULL,
   "created_at" timestamp NOT NULL
 );
 
-CREATE TABLE "Goals" (
-  "Goal_ID" integer PRIMARY KEY,
-  "User_ID" integer,
-  "Type" varchar,
-  "Target" int,
-  "Initial_Value" integer,
+
+CREATE TABLE "goals" (
+  "goal_ID" integer PRIMARY KEY,
+  "user_ID" integer,
+  "type" varchar,
+  "target" int,
+  "initial_Value" integer,
   "created_at" timestamp NOT NULL,
-  "Expiry" timestamp
+  "expiry" timestamp
 );
 
-CREATE TABLE "Trips" (
-  "Trip_ID" integer PRIMARY KEY,
-  "User_ID" integer,
-  "Start_time" timestamp,
-  "End_time" timestamp,
-  "Start_Location" varchar,
-  "End_Location" varchar,
-  "Route" varchar
+CREATE TABLE "trips" (
+  "trip_id" integer PRIMARY KEY,
+  "user_id" integer,
+  "start_time" timestamp,
+  "end_time" timestamp,
+  "start_location" varchar,
+  "end_location" varchar,
+  "route" varchar
 );
 
-CREATE TABLE "Saved_Locations" (
-  "Location_ID" integer PRIMARY KEY,
-  "User_ID" integer,
-  "Lat" float,
-  "Long" float,
-  "Location_name" varchar
+CREATE TABLE "saved_locations" (
+  "location_id" integer PRIMARY KEY,
+  "user_id" integer,
+  "lat" float,
+  "long" float,
+  "location_name" varchar
 );
 
-CREATE TABLE "Prefrences" (
-  "Prefernece_ID" integer PRIMARY KEY,
-  "User_ID" integer,
-  "Public_transport" integer,
-  "Bike_weight" integer,
-  "Walking_weight" integer,
-  "Driving_weight" integer
+CREATE TABLE "prefrences" (
+  "prefernece_ID" integer PRIMARY KEY,
+  "user_id" integer,
+  "public_transport" integer,
+  "bike_weight" integer,
+  "walking_weight" integer,
+  "driving_weight" integer
 );
 
-CREATE TABLE "Badge" (
-  "Badge_id" integer PRIMARY KEY,
-  "User_ID" integer,
-  "Type" varchar,
-  "Badge_image" varchar,
+CREATE TABLE "badge" (
+  "badge_id" integer PRIMARY KEY,
+  "user_id" integer,
+  "type" varchar,
+  "badge_image" varchar,
   "created_at" timestamp
 );
 
-ALTER TABLE "Trips" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
+ALTER TABLE "prefrences" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("user_id");
 
-ALTER TABLE "Goals" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
+ALTER TABLE "user_statistics" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("user_id");
 
-ALTER TABLE "Prefrences" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
+ALTER TABLE "goals" ADD FOREIGN KEY ("user_ID") REFERENCES "users" ("user_id");
 
-ALTER TABLE "Saved_Locations" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
+ALTER TABLE "trips" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("user_id");
 
-ALTER TABLE "Badge" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
+ALTER TABLE "saved_locations" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("user_id");
 
-ALTER TABLE "User_statistics" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
+ALTER TABLE "badge" ADD FOREIGN KEY ("user_id") REFERENCES "users" ("user_id");
