@@ -1,22 +1,26 @@
 from flask import Flask, jsonify, request
 import jwt
+from werkzeug.security import check_password_hash
 import datetime
 import psycopg2
+
+SECRET_KEY = 'chakdephatte'
+
 def databaseconn():
     try:
         conn = psycopg2.connect(
-            host="localhost",
-            port=5433,
-            database="Dynamic_way_finding",
-            user="postgres",
-            password="1881"
+            host="140.238.228.234",
+            port=8086,
+            database="postgres",
+            user="pastav",
+            password="ase123pastav"
         )
         return conn
     except Exception as e:
         print(f"An error occurred: {e}")
         
-
 app = Flask(__name__)
+
 @app.route('/api/auth/signup', methods=['POST'])
 def signup():
     try:
@@ -26,37 +30,47 @@ def signup():
         return jsonify({"message": "Database Down"}), 500
     if conn is not None:
         data = request.get_json()
-        username = data.get('username')
-        password = data.get('password')
+        username = data.get('username') 
         try:
-            # Create a cursor object to interact with the database
+            first_name, last_name = username.split(' ', 1)  # Limit to 1 space
+        except ValueError:
+            match = re.search(r"^(?P<first_name>\S+)\s+(?P<last_name>\S+)$", username)
+            if match:
+                first_name = match.group('first_name')
+                last_name = match.group('last_name')
+            else:
+                return jsonify({"message": "Invalid username format"}), 400
+
+        password = data.get('password')
+        email = data.get('email')
+        print(username,first_name,last_name,password,email)
+        try:
             cursor = conn.cursor()
-
-            # Define the SQL INSERT statement
+            # Check if the user already exists
+            cursor.execute("SELECT * FROM users WHERE email = %s", (email,))
+            existing_user = cursor.fetchone()
+            if existing_user:
+                # User already exists
+                cursor.close()
+                conn.close()
+                return jsonify({"message": "User already exists"}), 409
+            # User does not exist, proceed with signup
+            print("inserting")
             insert_query = """
-                INSERT INTO users (username, pass, created_at)
-                VALUES (%s, %s, NOW())
+                INSERT INTO users (first_name, last_name, password, email, created_at)
+                VALUES (%s, %s, %s, NOW())
             """
-
-            # Execute the INSERT statement
-            cursor.execute(insert_query, (username, password))
-
-            # Commit the transaction
+            cursor.execute(insert_query, (first_name,last_name, password, email))
             conn.commit()
-
-            # Close the cursor
             cursor.close()
-
             print(f"User '{username}' signed up successfully")
             conn.close()
             return jsonify({"message": "User signed up"}), 201
         except Exception as e:
-            conn.rollback()  # Rollback the transaction in case of an error
+            conn.rollback()
             print(f"Error: {e}")
             conn.close()
             return jsonify({"message": "Unable to sign up"}), 400
-
-
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():

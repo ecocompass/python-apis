@@ -7,7 +7,7 @@ CREATE TABLE "User_statistics" (
   "Completed_trips" integer
 );
 
-CREATE TABLE "users_1" (
+CREATE TABLE "users" (
   "User_ID" integer PRIMARY KEY,
   "Name" varchar,
   "Email" varchar UNIQUE NOT NULL,
@@ -60,14 +60,14 @@ CREATE TABLE "Badge" (
   "created_at" timestamp
 );
 
-ALTER TABLE "Trips" ADD FOREIGN KEY ("User_ID") REFERENCES "users_1" ("User_ID");
+ALTER TABLE "Trips" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
 
-ALTER TABLE "Goals" ADD FOREIGN KEY ("User_ID") REFERENCES "users_1" ("User_ID");
+ALTER TABLE "Goals" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
 
-ALTER TABLE "Prefrences" ADD FOREIGN KEY ("User_ID") REFERENCES "users_1" ("User_ID");
+ALTER TABLE "Prefrences" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
 
-ALTER TABLE "Saved_Locations" ADD FOREIGN KEY ("User_ID") REFERENCES "users_1" ("User_ID");
+ALTER TABLE "Saved_Locations" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
 
-ALTER TABLE "Badge" ADD FOREIGN KEY ("User_ID") REFERENCES "users_1" ("User_ID");
+ALTER TABLE "Badge" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
 
-ALTER TABLE "User_statistics" ADD FOREIGN KEY ("User_ID") REFERENCES "users_1" ("User_ID");
+ALTER TABLE "User_statistics" ADD FOREIGN KEY ("User_ID") REFERENCES "users" ("User_ID");
