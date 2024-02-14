@@ -137,18 +137,6 @@ def check_if_token_is_revoked(jwt_header, jwt_payload: dict):
 def protected():
     return jsonify(hello="world")
 
-@app.route('/api/user/profile', methods=['GET'])
-def get_user_profile():
-    # TODO: Fetch user profile information
-    return jsonify({"profile": "user_profile_data"}), 200
-
-@app.route('/api/user/badges', methods=['GET'])
-def get_user_badges():
-    # TODO: Fetch user badges
-    return jsonify({"badges": ["badge1", "badge2"]}), 200
-
-# Continue defining other routes similarly...
-
 if __name__ == '__main__':
     
     app.run(debug=True, host="0.0.0.0", port= 6969)  
