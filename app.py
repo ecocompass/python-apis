@@ -1,16 +1,12 @@
 from flask import Flask, jsonify, request
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import timedelta
+
 import datetime
 import psycopg2
 import re
-import redis
-
-# Connect to Redis
-# r = redis.Redis(host='140.238.228.234', port=9090, db=0)
-# # Example usage
-# r.set('key', 'value')
+from redis import Redis
 
 def databaseconn():
     try:
@@ -26,9 +22,11 @@ def databaseconn():
         print(f"An error occurred: {e}")
         
 app = Flask(__name__)
+ACCESS_EXPIRES = timedelta(hours=1)
 
 app.config['JWT_SECRET_KEY'] = 'chakdephatte'
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)  
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = ACCESS_EXPIRES
+redis_client = Redis(host='3.109.181.143', port=6379, db=0, password='pastavase123')
 jwt = JWTManager(app)
 
 @app.route('/api/auth/signup', methods=['POST'])
@@ -119,11 +117,25 @@ def login():
             conn.close()
             return jsonify({"message": "Unable to login"}), 500
 
-
-@app.route('/api/auth/logout', methods=['POST'])
+@app.route('/api/auth/logout', methods=['DELETE'])
+@jwt_required()
 def logout():
-    
-    return jsonify({"message": "User logged out"}), 200
+    jti = get_jwt()["jti"]
+    print(jti)
+    redis_client.set(jti, "", ex=ACCESS_EXPIRES)
+    return jsonify(msg="Access token revoked")
+
+# Callback function to check if a JWT exists in the redis blocklist
+@jwt.token_in_blocklist_loader
+def check_if_token_is_revoked(jwt_header, jwt_payload: dict):
+    jti = jwt_payload["jti"]
+    token_in_redis = redis_client.get(jti)
+    return token_in_redis is not None
+
+@app.route("/protected", methods=["GET"])
+@jwt_required()
+def protected():
+    return jsonify(hello="world")
 
 @app.route('/api/user/profile', methods=['GET'])
 def get_user_profile():
