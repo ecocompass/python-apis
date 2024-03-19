@@ -2,7 +2,12 @@ from flask import Flask, jsonify, request
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt, get_jwt_identity
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import timedelta
-
+import datetime
+import logging
+logging.basicConfig(level=logging.DEBUG)
+import sys
+from celery import Celery
+import time
 import datetime
 import psycopg2
 import re
@@ -22,22 +27,43 @@ def databaseconn():
         print(f"An error occurred: {e}")
         
 app = Flask(__name__)
-ACCESS_EXPIRES = timedelta(hours=1)
+ACCESS_EXPIRES = timedelta(days=3)
+app.config['CELERY_BROKER_URL'] = 'redis://:pastavase123@34.242.139.134:6379/1'
+app.config['CELERY_RESULT_BACKEND'] = 'redis://:pastavase123@34.242.139.134:6379/1'
+celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
+celery.conf.update(app.config)
+
+@celery.task
+def background_task(param1, param2):
+    # Perform some background task here
+    # For example, save data to Redis
+    time.sleep(5)
+    x = param1 + param2
+    print(param1, param2)
+    return 'Task completed'
+
+@app.route('/trigger_task')
+@jwt_required()
+def trigger_task():
+    # Trigger the background task asynchronously
+    result = background_task.delay(1, 3)
+    return f"Task ID: {result.id}"
 
 app.config['JWT_SECRET_KEY'] = 'chakdephatte'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = ACCESS_EXPIRES
-redis_client = Redis(host='3.109.181.143', port=6379, db=0, password='pastavase123')
+redis_client = Redis(host='34.242.139.134', port=6379, db=0, password='pastavase123')
 jwt = JWTManager(app)
 
 @app.route('/api/auth/signup', methods=['POST'])
 def signup():
-    conn = databaseconn() 
-    
-    if conn:
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    if conn is not None:
         data = request.get_json()
         username = data.get('username') 
-        if username is None:
-            return jsonify({"message": "Empty Username"}), 400
         try:
             first_name, last_name = username.split(' ', 1)  # Limit to 1 space
         except ValueError:
@@ -85,8 +111,6 @@ def signup():
             print(f"Error: {e}")
             conn.close()
             return jsonify({"message": "Unable to sign up"}), 400
-    else:
-        return jsonify({"message": "Database Down"}), 500
 
 @app.route('/api/auth/login', methods=['POST'])
 def login():
@@ -99,8 +123,7 @@ def login():
         data = request.get_json()
         email = data.get('email')
         password = data.get('password')
-        if email is None or password is None:
-            return jsonify({"message": "Empty email or password"}), 400
+
         try:
             cursor = conn.cursor()
             # Check if the user exists
@@ -226,11 +249,6 @@ def user_preferences_add():
     # Extract email and userID from the identities dictionary
     userID = identities.get("userID")
     try:
-        conn = databaseconn()
-    except Exception as e:
-        print(f"An error occurred: {e}")
-        return jsonify({"message": "Database Down"}), 500
-    try:
         cursor = conn.cursor()
         insert_query = """
             INSERT INTO preferences (user_id, public_transport, bike_weight, walking_weight, driving_weight, updated_at)
@@ -251,7 +269,207 @@ def user_preferences_add():
         print(f"Error: {e}")
         conn.close()
         return jsonify({"message": "Unable to add to DB"}), 500
+
+@app.route("/api/user/savedlocations", methods=["POST"])
+@jwt_required()
+def user_savedlocations_add():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    data = request.get_json()
+    latitude = data.get('latitude')
+    longitude = data.get('longitude')
+    location_name = data.get('location_name')
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        insert_query = """
+            INSERT INTO saved_locations (user_id, lat, long, location_name)
+            VALUES (%s, %s, %s, %s)
+            ON CONFLICT (user_id, location_name) DO UPDATE SET
+                lat = EXCLUDED.lat,
+                long = EXCLUDED.long,
+                user_id = EXCLUDED.user_id
+        """
+        cursor.execute(insert_query, (userID, latitude, longitude, location_name))
+        conn.commit()
+        cursor.close()
+        return jsonify({"message": "User saved locations updated or added"}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to add to DB"}), 500    
     
+@app.route("/api/user/savedlocations", methods=["GET"])
+@jwt_required()
+def user_savedlocations_get():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    # email = identities.get("email")
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        # Check if the user exists
+        cursor.execute("SELECT * FROM saved_locations WHERE user_id = %s", (userID,))
+        saved_locations = cursor.fetchall()
+        # print(saved_locations)
+        if saved_locations:
+            locations_data = []
+            for location in saved_locations:
+                location_data = {
+                    "location_name": location[3],
+                    "latitude": location[1],
+                    "longitude": location[2]
+                }
+                locations_data.append(location_data)
+            conn.close()
+            return jsonify({"saved_locations": locations_data}), 200
+        else:
+            # No saved locations found for the user
+            conn.close()
+            return jsonify({"message": "No saved locations found"}), 404
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to get saved locations"}), 500
+
+@app.route("/api/user/savedlocations", methods=["DELETE"])
+@jwt_required()
+def user_savedlocations_del():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    data = request.get_json()
+    location_name = data.get('location_name')
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        delete_query = """
+            DELETE FROM saved_locations
+            WHERE user_id = %s AND location_name = %s
+        """
+        cursor.execute(delete_query, (userID, location_name))
+        conn.commit()
+        cursor.close()
+        return jsonify({"message": "Location deleted successfully"}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to delete location"}), 500
+
+@app.route("/api/user/trips", methods=["POST"])
+@jwt_required()
+def user_trips_add():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    data = request.get_json()
+    start_time = datetime.datetime.fromtimestamp(int(data.get('start_time')))
+    end_time = datetime.datetime.fromtimestamp(int(data.get('end_time')))
+    start_time = start_time.strftime('%Y-%m-%d %H:%M:%S')
+    end_time = end_time.strftime('%Y-%m-%d %H:%M:%S')
+    start_location = data.get('start_location')
+    end_location = data.get('end_location')
+    distance_walk = data.get('distance_walk', 0)
+    distance_bike = data.get('distance_bike', 0)
+    distance_bus = data.get('distance_bus', 0)
+    distance_dart = data.get('distance_dart', 0)
+    distance_car = data.get('distance_car', 0)
+    distance_motorcycle = data.get('distance_motorcycle', 0)
+    distance_taxi = data.get('distance_taxi', 0)
+    distance_luas = data.get('distance_luas', 0)
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        insert_query = """
+            INSERT INTO trips (user_id, start_time, end_time, start_location, end_location, 
+                            distance_walk, distance_bike, distance_bus, distance_dart, 
+                            distance_car, distance_motorcycle, distance_taxi, distance_luas)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        """
+        # Execute the insert query
+        # Make sure to replace 'user_id_value' with the actual user ID
+        cursor.execute(insert_query, (userID, start_time, end_time, start_location, end_location,
+                                    distance_walk, distance_bike, distance_bus, distance_dart,
+                                    distance_car, distance_motorcycle, distance_taxi, distance_luas))
+        conn.commit()
+        cursor.close()
+        return jsonify({"message": "Trip added"}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to add to DB"}), 500    
+    
+@app.route("/api/user/trips", methods=["GET"])
+@jwt_required()
+def user_trips_get():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    # email = identities.get("email")
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        # Check if the user exists
+        cursor.execute("SELECT * FROM trips WHERE user_id = %s", (userID,))
+        trips = cursor.fetchall()
+        # print(trips)
+        if trips:
+            trips_data = []
+            for trip in trips:
+                # print(type(trip), file=sys.stderr)
+                trip_data = {
+                    "start_time": int(datetime.datetime.fromisoformat(str(trip[1])).timestamp()),
+                    "end_time": int(datetime.datetime.fromisoformat(str(trip[2])).timestamp()),
+                    "start_location": trip[3],
+                    "end_location": trip[4],
+                    "distance_walk": trip[5],
+                    "distance_bike": trip[7],
+                    "distance_bus": trip[8],
+                    "distance_dart": trip[9],
+                    "distance_car": trip[10],
+                    "distance_motorcycle": trip[11],
+                    "distance_taxi": trip[12],
+                    "distance_luas": trip[13]
+                }
+                trips_data.append(trip_data)
+            conn.close()
+            return jsonify({"saved_locations": trips_data}), 200
+        else:
+            # No saved locations found for the user
+            conn.close()
+            return jsonify({"message": "No trips found"}), 404
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": e}), 500
+    
+# def check_for_badge():
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port= 6969)  
+    
+    app.run(ssl_context='adhoc', debug=True, host="0.0.0.0", port= 5000)  

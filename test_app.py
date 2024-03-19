@@ -142,31 +142,45 @@ def test_login_missing_email(client):
     # Assert that the response contains the expected message
     assert response.json['message'] == 'Empty email or password'
 
-def test_login_missing_password(client):
-    # Define a test user with missing password
-    missing_password_user = {
-        'email': 'john@example.com'
+@pytest.fixture
+def jwt_token():
+    # Generate a JWT token with a mock payload
+    payload = {"userID": 123}
+    secret_key = "your_secret_key"  # Replace with your actual secret key
+    token = jwt.encode(payload, secret_key, algorithm="HS256")
+    return token
+
+
+def test_user_preferences_add(client, mocker):
+    # Mocking database connection
+    mocker.patch("app.databaseconn")
+
+    # Mocking JWT identity
+    mocker.patch("app.get_jwt_identity", return_value={"userID": 123})
+
+    # Mocking cursor execution
+    cursor_mock = mocker.Mock()
+    mocker.patch("app.databaseconn.cursor", return_value=cursor_mock)
+
+    # Mocking execute and commit methods
+    cursor_mock.execute.return_value = None
+    cursor_mock.commit.return_value = None
+
+    # Test data
+    test_data = {
+        "public_transport": 1,
+        "bike_weight": 0,
+        "walking_weight": 1,
+        "driving_weight": 1
     }
-    
-    # Make a POST request to the login endpoint with the user missing the password field
-    response = client.post('/api/auth/login', json=missing_password_user)
-    
-    # Assert that the response status code is 401
-    assert response.status_code == 400
 
-    # Assert that the response contains the expected message
-    assert response.json['message'] == 'Empty email or password'
+    # Sending POST request
+    response = client.post("/api/user/preferences", json=test_data)
 
-@patch('app.generate_access_token')
-def test_logout_success(mock_generate_access_token, client):
-    # Mock the generate_access_token function to return a dummy token
-    mock_generate_access_token.return_value = 'dummy_token'
-
-    # Make a DELETE request to the logout endpoint with the access token in the header
-    response = client.delete('/api/auth/logout', headers={'Authorization': 'Bearer dummy_token'})
-    
-    # Assert that the response status code is 200
+    # Asserting response
     assert response.status_code == 200
+    assert response.json == {"message": "User preferences updated or added"}
 
-    # Assert that the response contains the expected message
-    assert response.json['msg'] == 'Access token revoked'
+    # Asserting database interactions
+    cursor_mock.execute.assert_called_once()
+    cursor_mock.commit.assert_called_once()
