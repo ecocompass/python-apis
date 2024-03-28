@@ -6,7 +6,6 @@ import datetime
 import logging
 logging.basicConfig(level=logging.DEBUG)
 import sys
-from celery import Celery
 import time
 import datetime
 import psycopg2
@@ -28,30 +27,10 @@ def databaseconn():
         
 app = Flask(__name__)
 ACCESS_EXPIRES = timedelta(days=3)
-app.config['CELERY_BROKER_URL'] = 'redis://:pastavase123@34.242.139.134:6379/1'
-app.config['CELERY_RESULT_BACKEND'] = 'redis://:pastavase123@34.242.139.134:6379/1'
-celery = Celery(app.name, broker=app.config['CELERY_BROKER_URL'])
-celery.conf.update(app.config)
-
-@celery.task
-def background_task(param1, param2):
-    # Perform some background task here
-    # For example, save data to Redis
-    time.sleep(5)
-    x = param1 + param2
-    print(param1, param2)
-    return 'Task completed'
-
-@app.route('/trigger_task')
-@jwt_required()
-def trigger_task():
-    # Trigger the background task asynchronously
-    result = background_task.delay(1, 3)
-    return f"Task ID: {result.id}"
 
 app.config['JWT_SECRET_KEY'] = 'chakdephatte'
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = ACCESS_EXPIRES
-redis_client = Redis(host='34.242.139.134', port=6379, db=0, password='pastavase123')
+redis_client = Redis(host='54.246.162.92', port=6379, db=0, password='pastavase123')
 jwt = JWTManager(app)
 
 @app.route('/api/auth/signup', methods=['POST'])
@@ -75,7 +54,7 @@ def signup():
                 return jsonify({"message": "Invalid username format"}), 400
         password = data.get('password')
         email = data.get('email')
-        print(username,first_name,last_name,password,email)
+        # print(username,first_name,last_name,password,email)
         try:
             cursor = conn.cursor()
             # Check if the user already exists
@@ -102,7 +81,7 @@ def signup():
                     "email": email,
                     "userID": stored_userID
                 }
-            print(f"User '{username}' signed up successfully")
+            # print(f"User '{username}' signed up successfully")
             conn.close()
             access_token = create_access_token(identity=identities)
             return jsonify({"message": "User signed up", "access_token": access_token}), 201
@@ -117,7 +96,7 @@ def login():
     try:
         conn = databaseconn()
     except Exception as e:
-        print(f"An error occurred: {e}")
+        # print(f"An error occurred: {e}")
         return jsonify({"message": "Database Down"}), 500
     if conn is not None:
         data = request.get_json()
@@ -151,7 +130,7 @@ def login():
                 conn.close()
                 return jsonify({"message": "Invalid email or password"}), 401
         except Exception as e:
-            print(f"Error: {e}")
+            # print(f"Error: {e}")
             conn.close()
             return jsonify({"message": "Unable to login"}), 500
 
@@ -159,7 +138,7 @@ def login():
 @jwt_required()
 def logout():
     jti = get_jwt()["jti"]
-    print(jti)
+    # print(jti)
     redis_client.set(jti, "", ex=ACCESS_EXPIRES)
     return jsonify(msg="Access token revoked")
 
@@ -186,7 +165,7 @@ def user_profile():
     try:
         conn = databaseconn()
     except Exception as e:
-        print(f"An error occurred: {e}")
+        # print(f"An error occurred: {e}")
         return jsonify({"message": "Database Down"}), 500
     try:
         cursor = conn.cursor()
@@ -200,7 +179,7 @@ def user_profile():
             conn.close()
             return jsonify({"message": "Invalid email or password"}), 401
     except Exception as e:
-        print(f"Error: {e}")
+        # print(f"Error: {e}")
         conn.close()
         return jsonify({"message": "Unable to login"}), 500
 
@@ -214,7 +193,7 @@ def user_preferences():
     try:
         conn = databaseconn()
     except Exception as e:
-        print(f"An error occurred: {e}")
+        # print(f"An error occurred: {e}")
         return jsonify({"message": "Database Down"}), 500
     try:
         cursor = conn.cursor()
@@ -222,13 +201,13 @@ def user_preferences():
         cursor.execute("SELECT * FROM preferences WHERE user_id = %s", (userID,))
         user_preferences_details = cursor.fetchone()
         if user_preferences_details:
-            return jsonify({"public_transport_weight": user_preferences_details[1], "bike_weight": user_preferences_details[2], "walking_weight": user_preferences_details[3], "driving_weight": user_preferences_details[4],}), 200
+            return jsonify({"payload": {"public_transport_weight": user_preferences_details[1], "bike_weight": user_preferences_details[2], "walking_weight": user_preferences_details[3], "driving_weight": user_preferences_details[4],}}), 200
         else:
             # User not found
             conn.close()
-            return jsonify({"message": "Invalid email or password"}), 401
+            return jsonify({"payload": False}), 200
     except Exception as e:
-        print(f"Error: {e}")
+        # print(f"Error: {e}")
         conn.close()
         return jsonify({"message": "Unable to login"}), 500
 
@@ -238,7 +217,7 @@ def user_preferences_add():
     try:
         conn = databaseconn()
     except Exception as e:
-        print(f"An error occurred: {e}")
+        # print(f"An error occurred: {e}")
         return jsonify({"message": "Database Down"}), 500
     data = request.get_json()
     public_transport = data.get('public_transport')
@@ -266,7 +245,7 @@ def user_preferences_add():
         return jsonify({"message": "User preferences updated or added"}), 200
 
     except Exception as e:
-        print(f"Error: {e}")
+        # print(f"Error: {e}")
         conn.close()
         return jsonify({"message": "Unable to add to DB"}), 500
 
@@ -276,7 +255,7 @@ def user_savedlocations_add():
     try:
         conn = databaseconn()
     except Exception as e:
-        print(f"An error occurred: {e}")
+        # print(f"An error occurred: {e}")
         return jsonify({"message": "Database Down"}), 500
     data = request.get_json()
     latitude = data.get('latitude')
@@ -311,7 +290,7 @@ def user_savedlocations_get():
     try:
         conn = databaseconn()
     except Exception as e:
-        print(f"An error occurred: {e}")
+        # print(f"An error occurred: {e}")
         return jsonify({"message": "Database Down"}), 500
     identities = get_jwt_identity()
     # Extract email and userID from the identities dictionary
@@ -372,6 +351,106 @@ def user_savedlocations_del():
         conn.close()
         return jsonify({"message": "Unable to delete location"}), 500
 
+
+def awards_from_goals(userID, start_time):
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    try:
+        trip_start_date = datetime.datetime.fromtimestamp(int(start_time))
+        week_start_date = get_week_start_date(trip_start_date)
+        cursor = conn.cursor()
+        cursor.execute("SELECT * FROM goals WHERE user_id = %s", (userID,))
+        goals = cursor.fetchall()
+        # print(goals, file=sys.stderr)
+        cursor.execute("SELECT * FROM weekly_user_stats WHERE user_id = %s AND week_start_date = %s",
+                       (userID, week_start_date))
+        stats = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        print(stats)
+        # _, _, _, public_transport, cycling, walking = stats
+        public_transport = stats[3]
+        cycling = stats[4]
+        walking = stats[5]
+        print("public_transport for awards: ",public_transport)
+        print("cycling for awards: ",cycling)
+        print("walking for awards: ",walking)
+        public_transport_awards = []
+        cycling_awards = []
+        walking_awards = []
+
+        # Comparing each goal with the corresponding stat and giving awards
+        for goal in goals:
+            goal_type = goal[1]
+            goal_target = goal[2]
+            # , goal_target, _, _, _ = goal
+            if goal_type == 'walking':
+                if walking >= goal_target:
+                    walking_awards.append(f"Achievement Unlocked: Reached walking goal of {goal_target} km.")
+            elif goal_type == 'cycling':
+                if cycling >= goal_target:
+                    cycling_awards.append(f"Achievement Unlocked: Reached cycling goal of {goal_target} km.")
+            elif goal_type == 'public_transport':
+                if public_transport >= goal_target:
+                    public_transport_awards.append(f"Achievement Unlocked: Reached public transport goal of {goal_target} km.")
+        payload = {}
+        if cycling_awards:
+            payload["awards for cycling"] = cycling_awards
+        if walking_awards:
+            payload["awards for walking"] = walking_awards
+        if public_transport_awards:
+            payload["awards for public transport"] = public_transport_awards
+        if payload:
+            print(payload)
+            return {"awards": payload}
+        else:
+            return False
+    except Exception as e:
+        print(f"Error in the awards: {e}")
+        conn.close()
+        return False    
+
+def get_week_start_date(date):
+    """
+    Function to calculate the start date of the week for a given date.
+    """
+    return (date - datetime.timedelta(days=date.weekday())).date()
+
+def save_weekly_data(userID, start_time, walking, cycling, distance_bus, distance_dart, distance_car, distance_luas):
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return False
+    trip_start_date = datetime.datetime.fromtimestamp(int(start_time))
+    week_start_date = get_week_start_date(trip_start_date)
+    print(week_start_date)
+    public_transport = float(distance_bus) + float(distance_dart) + float(distance_luas)
+    try:
+        cursor = conn.cursor()
+        insert_query = """
+            INSERT INTO weekly_user_stats (user_id, week_start_date, public_transport, cycling, walking, car)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT (user_id, week_start_date) DO UPDATE SET
+                car = weekly_user_stats.car + EXCLUDED.car,
+                public_transport = weekly_user_stats.public_transport + EXCLUDED.public_transport,
+                cycling = weekly_user_stats.cycling + EXCLUDED.cycling,
+                walking = weekly_user_stats.walking + EXCLUDED.walking,
+                week_start_date = weekly_user_stats.week_start_date,
+                user_id = weekly_user_stats.user_id
+        """
+        cursor.execute(insert_query, (userID, week_start_date, str(public_transport), cycling, walking, distance_car))
+        conn.commit()
+        conn.close()
+        return True
+
+    except Exception as e:
+        print(f"An error occurred in weekly data saving: {e}")
+        return False
+
 @app.route("/api/user/trips", methods=["POST"])
 @jwt_required()
 def user_trips_add():
@@ -381,6 +460,7 @@ def user_trips_add():
         print(f"An error occurred: {e}")
         return jsonify({"message": "Database Down"}), 500
     data = request.get_json()
+    start_time_weekly = int(data.get('start_time'))
     start_time = datetime.datetime.fromtimestamp(int(data.get('start_time')))
     end_time = datetime.datetime.fromtimestamp(int(data.get('end_time')))
     start_time = start_time.strftime('%Y-%m-%d %H:%M:%S')
@@ -395,7 +475,18 @@ def user_trips_add():
     distance_motorcycle = data.get('distance_motorcycle', 0)
     distance_taxi = data.get('distance_taxi', 0)
     distance_luas = data.get('distance_luas', 0)
+    route = data.get('route', 0)
+    if float(distance_walk) >= 1:
+        walking_streak = 1
+    else:
+        walking_streak = 0
+    
+    if float(distance_bike) >=1:
+        cycle_streak = 1
+    else:
+        cycle_streak = 0
     identities = get_jwt_identity()
+    completed_trips = 1
     # Extract email and userID from the identities dictionary
     userID = identities.get("userID")
     try:
@@ -403,20 +494,48 @@ def user_trips_add():
         insert_query = """
             INSERT INTO trips (user_id, start_time, end_time, start_location, end_location, 
                             distance_walk, distance_bike, distance_bus, distance_dart, 
-                            distance_car, distance_motorcycle, distance_taxi, distance_luas)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                            distance_car, distance_motorcycle, distance_taxi, distance_luas, route)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         """
-        # Execute the insert query
-        # Make sure to replace 'user_id_value' with the actual user ID
         cursor.execute(insert_query, (userID, start_time, end_time, start_location, end_location,
                                     distance_walk, distance_bike, distance_bus, distance_dart,
-                                    distance_car, distance_motorcycle, distance_taxi, distance_luas))
+                                    distance_car, distance_motorcycle, distance_taxi, distance_luas, route))
+        
+        insert_query_stats = """
+            INSERT INTO user_statistics (user_id, Total_Distance_walk, Total_Distance_bike, Cycle_Streak, Walking_streak, 
+                                Completed_trips, Total_Distance_bus, Total_Distance_dart, Total_Distance_car, 
+                                Total_Distance_luas)
+            VALUES (%s, %s, %s, %s, %s, (SELECT COUNT(*) FROM trips WHERE user_id = %s), %s, %s, %s, %s)
+            ON CONFLICT (user_id)
+            DO UPDATE SET
+                Total_Distance_walk = user_statistics.Total_Distance_walk + EXCLUDED.Total_Distance_walk,
+                Total_Distance_bike = user_statistics.Total_Distance_bike + EXCLUDED.Total_Distance_bike,
+                Cycle_Streak = CASE WHEN EXCLUDED.Cycle_Streak = 0 THEN 0 ELSE user_statistics.Cycle_Streak + EXCLUDED.Cycle_Streak END,
+                Walking_streak = CASE WHEN EXCLUDED.Walking_streak = 0 THEN 0 ELSE user_statistics.Walking_streak + EXCLUDED.Walking_streak END,
+                Completed_trips = EXCLUDED.Completed_trips,
+                Total_Distance_bus = user_statistics.Total_Distance_bus + EXCLUDED.Total_Distance_bus,
+                Total_Distance_dart = user_statistics.Total_Distance_dart + EXCLUDED.Total_Distance_dart,
+                Total_Distance_car = user_statistics.Total_Distance_car + EXCLUDED.Total_Distance_car,
+                Total_Distance_luas = user_statistics.Total_Distance_luas + EXCLUDED.Total_Distance_luas;
+        """
+        cursor.execute(insert_query_stats, (userID, distance_walk, distance_bike, cycle_streak, walking_streak,
+                                    userID, distance_bus, distance_dart,
+                                    distance_car, distance_luas))
         conn.commit()
-        cursor.close()
-        return jsonify({"message": "Trip added"}), 200
-
+        conn.close()
+        # print(userID, start_time_weekly, distance_walk, distance_bike, distance_bus, distance_dart, distance_car, distance_luas)
+        weekly_data = save_weekly_data(userID, start_time_weekly, distance_walk, distance_bike, distance_bus, distance_dart, distance_car, distance_luas)
+        if weekly_data == True:
+            awards_result = awards_from_goals(userID, start_time_weekly)
+            print(awards_result)
+            if awards_result:
+                return jsonify({"message": "Saved Trips", "payload": awards_result}), 200
+        else:
+            print("unable to save weekly data in db")
+        
+        return jsonify({"message": "Saved Trips"}), 200
     except Exception as e:
-        print(f"Error: {e}")
+        print(f"Error in the trips: {e}")
         conn.close()
         return jsonify({"message": "Unable to add to DB"}), 500    
     
@@ -454,7 +573,8 @@ def user_trips_get():
                     "distance_car": trip[10],
                     "distance_motorcycle": trip[11],
                     "distance_taxi": trip[12],
-                    "distance_luas": trip[13]
+                    "distance_luas": trip[13], 
+                    "route": trip[14]
                 }
                 trips_data.append(trip_data)
             conn.close()
@@ -468,8 +588,276 @@ def user_trips_get():
         conn.close()
         return jsonify({"message": e}), 500
     
-# def check_for_badge():
+@app.route("/api/user/trips", methods=["DELETE"])
+@jwt_required()
+def user_trips_del():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    data = request.get_json()
+    start_time = datetime.datetime.fromtimestamp(int(data.get('start_time')))
+    end_time = datetime.datetime.fromtimestamp(int(data.get('end_time')))
+    start_time = start_time.strftime('%Y-%m-%d %H:%M:%S')
+    end_time = end_time.strftime('%Y-%m-%d %H:%M:%S')
+    start_location = data.get('start_location')
+    end_location = data.get('end_location')
+    distance_walk = data.get('distance_walk', 0)
+    distance_bike = data.get('distance_bike', 0)
+    distance_bus = data.get('distance_bus', 0)
+    distance_dart = data.get('distance_dart', 0)
+    distance_car = data.get('distance_car', 0)
+    distance_motorcycle = data.get('distance_motorcycle', 0)
+    distance_taxi = data.get('distance_taxi', 0)
+    distance_luas = data.get('distance_luas', 0)
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        delete_query = """
+            DELETE FROM trips
+            WHERE user_id = %s
+            AND start_time = %s
+            AND end_time = %s
+            AND start_location = %s
+            AND end_location = %s
+            AND distance_walk = %s
+            AND distance_bike = %s
+            AND distance_bus = %s
+            AND distance_dart = %s
+            AND distance_car = %s
+            AND distance_motorcycle = %s
+            AND distance_taxi = %s
+            AND distance_luas = %s;
+        """
+        cursor.execute(delete_query, (userID, start_time, end_time, start_location, end_location, 
+                                    distance_walk, distance_bike, distance_bus, distance_dart, 
+                                    distance_car, distance_motorcycle, distance_taxi, distance_luas))
+        conn.commit()
+        cursor.close()
+        return jsonify({"message": "Location deleted successfully"}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to delete location"}), 500
+
+
+@app.route("/api/user/routes", methods=["POST"])
+@jwt_required()
+def user_routes_add():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        # print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    data = request.get_json()
+    route = data.get('route')
+    route_name = data.get('route_name')
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        insert_query = """
+            INSERT INTO routes (user_id, route_val, route_name)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (user_id, route_name) DO UPDATE SET
+                route_val = EXCLUDED.route_val,
+                user_id = EXCLUDED.user_id
+        """
+        cursor.execute(insert_query, (userID, route, route_name))
+        conn.commit()
+        cursor.close()
+        return jsonify({"message": "User saved routes updated or added"}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to add to DB"}), 500    
+
+
+@app.route("/api/user/routes", methods=["GET"])
+@jwt_required()
+def user_routes_get():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        # print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    # email = identities.get("email")
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        # Check if the user exists
+        cursor.execute("SELECT * FROM routes WHERE user_id = %s", (userID,))
+        saved_routes = cursor.fetchall()
+        # print(saved_locations)
+        if saved_routes:
+            routes_data = []
+            for route in saved_routes:
+                route_data = {
+                    "route_name": route[3],
+                    "route": route[2]
+                }
+                routes_data.append(route_data)
+            conn.close()
+            return jsonify({"payload": routes_data}), 200
+        else:
+            # No saved locations found for the user
+            conn.close()
+            return jsonify({"payload": False}), 200
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to get saved routes"}), 500
+
+
+@app.route("/api/user/routes", methods=["DELETE"])
+@jwt_required()
+def user_routes_del():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    data = request.get_json()
+    route_name = data.get('route_name')
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        delete_query = """
+            DELETE FROM routes
+            WHERE user_id = %s AND route_name = %s
+        """
+        cursor.execute(delete_query, (userID, route_name))
+        conn.commit()
+        cursor.close()
+        return jsonify({"message": "Route deleted successfully"}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to delete route"}), 500
+    
+@app.route("/api/user/goals", methods=["POST"])
+@jwt_required()
+def user_goals_add():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        return jsonify({"message": "Database Down"}), 500
+
+    data = request.get_json()
+
+    try:
+        cursor = conn.cursor()
+
+        for goal_data in data:
+            targettype = goal_data.get('type')
+            target = goal_data.get('target')
+            createdat = datetime.datetime.fromtimestamp(int(goal_data.get('created_at')))
+            expiry = datetime.datetime.fromtimestamp(int(goal_data.get('expiry')))
+            identities = get_jwt_identity()
+            userID = identities.get("userID")
+
+            insert_query = """
+                INSERT INTO goals (user_id, type, target, created_at, expiry)
+                VALUES (%s, %s, %s, %s, %s)
+                ON CONFLICT (user_id, type) DO UPDATE SET
+                    type = EXCLUDED.type,
+                    user_id = EXCLUDED.user_id,
+                    target = EXCLUDED.target,
+                    created_at = EXCLUDED.created_at,
+                    expiry = EXCLUDED.expiry
+            """
+            cursor.execute(insert_query, (userID, targettype, target, createdat, expiry))
+            conn.commit()
+
+        cursor.close()
+        return jsonify({"message": "User goals updated or added"}), 200
+
+    except Exception as e:
+        print(f"Error: {e}", file=sys.stderr)
+        conn.rollback()  # Rollback changes if an error occurs
+        return jsonify({"message": "Unable to add to DB"}), 500
+    finally:
+        conn.close()
+ 
+
+@app.route("/api/user/goals", methods=["GET"])
+@jwt_required()
+def user_goals_get():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        # print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    # email = identities.get("email")
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        # Check if the user exists
+        cursor.execute("SELECT * FROM goals WHERE user_id = %s", (userID,))
+        saved_goals = cursor.fetchall()
+        # print(saved_locations)
+        if saved_goals:
+            goals_data = []
+            for goal in saved_goals:
+                goal_data = {
+                    "type": goal[1],
+                    "target": goal[2],
+                    "created_at": int(datetime.datetime.fromisoformat(str(goal[3])).timestamp()),
+                    "expiry": int(datetime.datetime.fromisoformat(str(goal[4])).timestamp())
+                }
+                goals_data.append(goal_data)
+            conn.close()
+            return jsonify({"payload": goals_data}), 200
+        else:
+            # No saved locations found for the user
+            conn.close()
+            return jsonify({"payload": False}), 200
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to get saved routes"}), 500
+
+@app.route("/api/user/goals", methods=["DELETE"])
+@jwt_required()
+def user_goals_del():
+    try:
+        conn = databaseconn()
+    except Exception as e:
+        print(f"An error occurred: {e}")
+        return jsonify({"message": "Database Down"}), 500
+    data = request.get_json()
+    goaltype = data.get('type')
+    identities = get_jwt_identity()
+    # Extract email and userID from the identities dictionary
+    userID = identities.get("userID")
+    try:
+        cursor = conn.cursor()
+        delete_query = """
+            DELETE FROM goals
+            WHERE user_id = %s AND type = %s
+        """
+        cursor.execute(delete_query, (userID, goaltype))
+        conn.commit()
+        cursor.close()
+        return jsonify({"message": "Goal deleted successfully"}), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        conn.close()
+        return jsonify({"message": "Unable to delete route"}), 500
 
 if __name__ == '__main__':
-    
-    app.run(ssl_context='adhoc', debug=True, host="0.0.0.0", port= 5000)  
+    app.run(debug=True, host="0.0.0.0", port= 5050)  
