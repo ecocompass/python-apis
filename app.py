@@ -33,12 +33,8 @@ try:
 except Exception as e:
     print(f"cannot fetch REDIS details from environment {e}")
 
-try:
-    JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
-    JWT_ACCESS_TOKEN_EXPIRE_HOURS = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRE_HOURS'))
-except Exception as e:
-    print(f"cannot fetch JWT details from environment {e}")
-
+JWT_SECRET_KEY = os.environ.get('JWT_SECRET_KEY')
+JWT_ACCESS_TOKEN_EXPIRE_HOURS = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRE_HOURS'))
 
 def databaseconn():
     try:
@@ -432,34 +428,66 @@ def awards_from_goals(userID, start_time):
         cursor.execute("SELECT * FROM weekly_user_stats WHERE user_id = %s AND week_start_date = %s",
                        (userID, week_start_date))
         stats = cursor.fetchone()
-        cursor.close()
-        conn.close()
-        print(stats)
+        # print(stats)
         # _, _, _, public_transport, cycling, walking = stats
         public_transport = stats[3]
         cycling = stats[4]
         walking = stats[5]
-        print("public_transport for awards: ",public_transport)
-        print("cycling for awards: ",cycling)
-        print("walking for awards: ",walking)
+        car = stats[6]
+        goal_walking = stats[7]
+        goal_cycling = stats[8]
+        goal_public_transport = stats[9]
+        # print("public_transport for awards: ",public_transport)
+        # print("cycling for awards: ",cycling)
+        # print("walking for awards: ",walking)
         public_transport_awards = []
         cycling_awards = []
         walking_awards = []
+        change = False
 
-        # Comparing each goal with the corresponding stat and giving awards
+        if goal_walking and goal_cycling and goal_public_transport == True:
+            return False
+        
         for goal in goals:
             goal_type = goal[1]
             goal_target = goal[2]
             # , goal_target, _, _, _ = goal
-            if goal_type == 'walking':
+            if goal_type == 'walking' and goal_walking == False:
                 if walking >= goal_target:
                     walking_awards.append(f"Achievement Unlocked: Reached walking goal of {goal_target} km.")
-            elif goal_type == 'cycling':
+                    goal_walking = True
+                    change = True
+            elif goal_type == 'cycling' and goal_cycling == False:
                 if cycling >= goal_target:
                     cycling_awards.append(f"Achievement Unlocked: Reached cycling goal of {goal_target} km.")
-            elif goal_type == 'public_transport':
+                    goal_cycling = True
+                    change = True
+            elif goal_type == 'public_transport' and goal_public_transport == False:
                 if public_transport >= goal_target:
                     public_transport_awards.append(f"Achievement Unlocked: Reached public transport goal of {goal_target} km.")
+                    goal_public_transport = True
+                    change = True
+
+        if change:
+            try:
+                cursor = conn.cursor()
+                insert_query = """
+                    INSERT INTO weekly_user_stats (user_id, week_start_date, goal_walking, goal_cycling, goal_public_transport)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (user_id, week_start_date) DO UPDATE SET
+                        goal_walking = EXCLUDED.goal_walking,
+                        goal_cycling = EXCLUDED.goal_cycling,
+                        goal_public_transport = EXCLUDED.goal_public_transport
+                """
+                cursor.execute(insert_query, (userID, week_start_date, goal_walking, goal_cycling, goal_public_transport))
+                conn.commit()
+                cursor.close()
+            except Exception as e:
+                print(f"An error occurred: {e}")
+                conn.rollback()
+            finally:
+                conn.close()
+
         payload = {}
         if cycling_awards:
             payload["awards for cycling"] = cycling_awards
@@ -468,7 +496,7 @@ def awards_from_goals(userID, start_time):
         if public_transport_awards:
             payload["awards for public transport"] = public_transport_awards
         if payload:
-            print(payload)
+            # print(payload)
             return {"awards": payload}
         else:
             return False
@@ -491,7 +519,7 @@ def save_weekly_data(userID, start_time, walking, cycling, distance_bus, distanc
         return False
     trip_start_date = datetime.datetime.fromtimestamp(int(start_time))
     week_start_date = get_week_start_date(trip_start_date)
-    print(week_start_date)
+    # print(week_start_date)
     public_transport = float(distance_bus) + float(distance_dart) + float(distance_luas)
     try:
         cursor = conn.cursor()
@@ -555,43 +583,49 @@ def user_trips_add():
     userID = identities.get("userID")
     try:
         cursor = conn.cursor()
-        insert_query = """
-            INSERT INTO trips (user_id, start_time, end_time, start_location, end_location, 
-                            distance_walk, distance_bike, distance_bus, distance_dart, 
-                            distance_car, distance_motorcycle, distance_taxi, distance_luas, route)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        """
-        cursor.execute(insert_query, (userID, start_time, end_time, start_location, end_location,
-                                    distance_walk, distance_bike, distance_bus, distance_dart,
-                                    distance_car, distance_motorcycle, distance_taxi, distance_luas, route))
-        
-        insert_query_stats = """
-            INSERT INTO user_statistics (user_id, Total_Distance_walk, Total_Distance_bike, Cycle_Streak, Walking_streak, 
-                                Completed_trips, Total_Distance_bus, Total_Distance_dart, Total_Distance_car, 
-                                Total_Distance_luas)
-            VALUES (%s, %s, %s, %s, %s, (SELECT COUNT(*) FROM trips WHERE user_id = %s), %s, %s, %s, %s)
-            ON CONFLICT (user_id)
-            DO UPDATE SET
-                Total_Distance_walk = user_statistics.Total_Distance_walk + EXCLUDED.Total_Distance_walk,
-                Total_Distance_bike = user_statistics.Total_Distance_bike + EXCLUDED.Total_Distance_bike,
-                Cycle_Streak = CASE WHEN EXCLUDED.Cycle_Streak = 0 THEN 0 ELSE user_statistics.Cycle_Streak + EXCLUDED.Cycle_Streak END,
-                Walking_streak = CASE WHEN EXCLUDED.Walking_streak = 0 THEN 0 ELSE user_statistics.Walking_streak + EXCLUDED.Walking_streak END,
-                Completed_trips = EXCLUDED.Completed_trips,
-                Total_Distance_bus = user_statistics.Total_Distance_bus + EXCLUDED.Total_Distance_bus,
-                Total_Distance_dart = user_statistics.Total_Distance_dart + EXCLUDED.Total_Distance_dart,
-                Total_Distance_car = user_statistics.Total_Distance_car + EXCLUDED.Total_Distance_car,
-                Total_Distance_luas = user_statistics.Total_Distance_luas + EXCLUDED.Total_Distance_luas;
-        """
-        cursor.execute(insert_query_stats, (userID, distance_walk, distance_bike, cycle_streak, walking_streak,
-                                    userID, distance_bus, distance_dart,
-                                    distance_car, distance_luas))
-        conn.commit()
-        conn.close()
+        try:
+            with conn:
+                insert_query = """
+                    INSERT INTO trips (user_id, start_time, end_time, start_location, end_location, 
+                                    distance_walk, distance_bike, distance_bus, distance_dart, 
+                                    distance_car, distance_motorcycle, distance_taxi, distance_luas, route)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """
+                cursor.execute(insert_query, (userID, start_time, end_time, start_location, end_location,
+                                            distance_walk, distance_bike, distance_bus, distance_dart,
+                                            distance_car, distance_motorcycle, distance_taxi, distance_luas, route))
+                
+                insert_query_stats = """
+                    INSERT INTO user_statistics (user_id, Total_Distance_walk, Total_Distance_bike, Cycle_Streak, Walking_streak, 
+                                        Completed_trips, Total_Distance_bus, Total_Distance_dart, Total_Distance_car, 
+                                        Total_Distance_luas)
+                    VALUES (%s, %s, %s, %s, %s, (SELECT COUNT(*) FROM trips WHERE user_id = %s), %s, %s, %s, %s)
+                    ON CONFLICT (user_id)
+                    DO UPDATE SET
+                        Total_Distance_walk = user_statistics.Total_Distance_walk + EXCLUDED.Total_Distance_walk,
+                        Total_Distance_bike = user_statistics.Total_Distance_bike + EXCLUDED.Total_Distance_bike,
+                        Cycle_Streak = CASE WHEN EXCLUDED.Cycle_Streak = 0 THEN 0 ELSE user_statistics.Cycle_Streak + EXCLUDED.Cycle_Streak END,
+                        Walking_streak = CASE WHEN EXCLUDED.Walking_streak = 0 THEN 0 ELSE user_statistics.Walking_streak + EXCLUDED.Walking_streak END,
+                        Completed_trips = EXCLUDED.Completed_trips,
+                        Total_Distance_bus = user_statistics.Total_Distance_bus + EXCLUDED.Total_Distance_bus,
+                        Total_Distance_dart = user_statistics.Total_Distance_dart + EXCLUDED.Total_Distance_dart,
+                        Total_Distance_car = user_statistics.Total_Distance_car + EXCLUDED.Total_Distance_car,
+                        Total_Distance_luas = user_statistics.Total_Distance_luas + EXCLUDED.Total_Distance_luas;
+                """
+                cursor.execute(insert_query_stats, (userID, distance_walk, distance_bike, cycle_streak, walking_streak,
+                                            userID, distance_bus, distance_dart,
+                                            distance_car, distance_luas))
+        except Exception as e:
+            print(f"An error occurred: {e}")
+            return jsonify({"message": "Database Error"}), 500
+        else:
+            conn.commit()
+            conn.close()
         # print(userID, start_time_weekly, distance_walk, distance_bike, distance_bus, distance_dart, distance_car, distance_luas)
         weekly_data = save_weekly_data(userID, start_time_weekly, distance_walk, distance_bike, distance_bus, distance_dart, distance_car, distance_luas)
         if weekly_data == True:
             awards_result = awards_from_goals(userID, start_time_weekly)
-            print(awards_result)
+            # print(awards_result)
             if awards_result:
                 return jsonify({"message": "Saved Trips", "payload": awards_result}), 200
         else:
