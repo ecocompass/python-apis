@@ -459,7 +459,7 @@ def awards_from_goals(userID, start_time):
                     change = True
             elif goal_type == 'cycling' and goal_cycling == False:
                 if cycling >= goal_target:
-                    cycling_awards.append(f"Achievement Unlocked: Reached cycling goal of {goal_target} km.")
+                    cycling_awards.append(f"Achievement Unlocked: Reached biking goal of {goal_target} km.")
                     goal_cycling = True
                     change = True
             elif goal_type == 'public_transport' and goal_public_transport == False:
@@ -490,14 +490,14 @@ def awards_from_goals(userID, start_time):
 
         payload = {}
         if cycling_awards:
-            payload["awards for cycling"] = cycling_awards
+            payload["awards for biking"] = cycling_awards
         if walking_awards:
             payload["awards for walking"] = walking_awards
         if public_transport_awards:
             payload["awards for public transport"] = public_transport_awards
         if payload:
             # print(payload)
-            return {"awards": payload}
+            return payload
         else:
             return False
     except Exception as e:
@@ -627,11 +627,13 @@ def user_trips_add():
             awards_result = awards_from_goals(userID, start_time_weekly)
             # print(awards_result)
             if awards_result:
-                return jsonify({"message": "Saved Trips", "payload": awards_result}), 200
+                # return jsonify({"message": "Saved Trips", "payload": awards_result}), 200
+                return jsonify({"payload": {"message": "Saved Trips", "awards": awards_result}}), 200
+
         else:
             print("unable to save weekly data in db")
         
-        return jsonify({"message": "Saved Trips"}), 200
+        return jsonify({"message": "Saved Trip"}), 200
     except Exception as e:
         print(f"Error in the trips: {e}")
         conn.close()
