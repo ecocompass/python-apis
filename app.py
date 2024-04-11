@@ -14,7 +14,8 @@ import psycopg2
 import re
 from redis import Redis
 import requests
-
+_default_expiry_hours = 24  
+JWT_ACCESS_TOKEN_EXPIRE_HOURS = int(os.environ.get('JWT_ACCESS_TOKEN_EXPIRE_HOURS', '24'))
 try:
     POSTGRES_HOST_NAME = os.environ.get('POSTGRES_HOST_NAME')
     POSTGRES_PORT = os.environ.get('POSTGRES_PORT')
