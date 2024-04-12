@@ -1,73 +1,95 @@
 import unittest
 import json
-from app import app 
-class TestSignupEndpoint(unittest.TestCase):
+import requests
 
+
+class TestUserFlow(unittest.TestCase):
     def setUp(self):
-        # Setup a test client for the Flask app
-        self.app = app.test_client()
-        self.app.testing = True
-
-    def test_signup_success(self):
-        # Test successful signup
-        test_data = {
-            "username": "xyz",
-            "password": "password123",
-            "email": "john.doe@example.com"
-        }
-        response = self.app.post('/api/auth/signup', data=json.dumps(test_data), content_type='application/json')
-        self.assertEqual(response.status_code, 201)
-
-    
-
-class TestLoginEndpoint(unittest.TestCase):
-
-    def setUp(self):
-        self.app = app.test_client()
-        self.app.testing = True
-
-    def test_login_success(self):
-        
-        test_data = {
-            "email": "user@example.com",
+        self.base_url = "http://prod.ecocompass.live"
+        # Use the same user details as you would in Postman for consistency
+        self.test_user = {
+            "username": "prhtiu jiob",  # Make sure this username adheres to your API's format requirements
+            "email": "h793@example.com",
             "password": "password123"
         }
-        response = self.app.post('/api/auth/login', data=json.dumps(test_data), content_type='application/json')
-        self.assertEqual(response.status_code, 200)
-        
-    @staticmethod
-    def get_access_token_for_test_user():
-        test_app = app.test_client()
-        test_app.testing = True
-        test_data = {
-            "email": "john.doe@example.com",
-            "password": "password123"
+        self.access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTcxMjk1NTk4MCwianRpIjoiZGEzYjY5NzMtYjdiMC00MzU1LTk4OWItMmZjNzk3OTM5N2E2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6eyJlbWFpbCI6ImhpNkBleGFtcGxlLmNvbSIsInVzZXJJRCI6NjV9LCJuYmYiOjE3MTI5NTU5ODAsImNzcmYiOiIyMjg2ZjM1ZC03OTUyLTRmNWUtOWQ1YS01ZTRlMDcxYzA4ODEiLCJleHAiOjE3MTI5NTk1ODB9.v1PQ3se200s9eVei1uqb8-mEICuxOfNgmwmI8DMN4zQ" 
+
+    def test_signup_and_log9in(self):
+        # Signup
+        signup_url = f"{self.base_url}/api/auth/signup"
+        signup_response = requests.post(signup_url, json=self.test_user)
+        self.assertEqual(signup_response.status_code, 201, "Signup failed: {}".format(signup_response.json()))
+        self.assertIn("User signed up", signup_response.json()['message'], "Signup message not as expected")
+
+        # Login
+        login_url = f"{self.base_url}/api/auth/login"
+        login_data = {
+            "email": self.test_user["email"],
+            "password": self.test_user["password"]
         }
-        response = test_app.post('/api/auth/login', data=json.dumps(test_data), content_type='application/json')
-        return response.json.get('access_token')
-
-class TestProtectedEndpoints(unittest.TestCase):
-
-    def setUp(self):
-        self.app = app.test_client()
-        self.app.testing = True
-
-    def test_protected_route(self):
-        access_token = TestLoginEndpoint().get_access_token_for_test_user()
-        response = self.app.get("/protected", headers={"Authorization": f"Bearer {access_token}"})
-        self.assertEqual(response.status_code, 200)
-        self.assertEqual(response.json, {"hello": "world"})
+        
+        login_response = requests.post(login_url, json=login_data)
+        self.access_token = login_response.json()['access_token']  # Save the access token
+        self.assertEqual(login_response.status_code, 200, "Login failed: {}".format(login_response.json()))
+        self.assertIn("Login successful", login_response.json()['message'], "Login message not as expected")
+        self.assertTrue('access_token' in login_response.json(), "Access token not found in login response")
+        print(self.access_token)
 
     def test_user_profile(self):
-        access_token = TestLoginEndpoint().get_access_token_for_test_user()
-        response = self.app.get("/api/user/profile", headers={"Authorization": f"Bearer {access_token}"})
-        self.assertEqual(response.status_code, 200)
-        # Adjust the following assertions based on the actual structure of your user profile response
-        self.assertIn("first_name", response.json)
-        self.assertIn("last_name", response.json)
-        self.assertIn("email", response.json)
-        self.assertIn("created_at", response.json)
-    
+        print(self.access_token)
+        """Test retrieving the user profile using the JWT token obtained from login."""
+        if self.access_token:
+            profile_url = f"{self.base_url}/api/user/profile"
+            headers = {'Authorization': f'Bearer {self.access_token}'}
+            profile_response = requests.get(profile_url, headers=headers)
+            self.assertEqual(profile_response.status_code, 200, "Failed to access user profile.")
+            profile_data = profile_response.json()
+            self.assertIn("first_name", profile_data, "First name not found in profile data")
+            self.assertIn("email", profile_data, "Email not found in profile data")
+        else:
+            self.fail("Access token not obtained from login.")
 
+    def test_user_preferences(self):
+        """Test retrieving the user preferences using the JWT token obtained from login."""
+        if self.access_token:
+            preferences_url = f"{self.base_url}/api/user/preferences"
+            headers = {'Authorization': f'Bearer {self.access_token}'}
+            preferences_response = requests.get(preferences_url, headers=headers)
+            self.assertEqual(preferences_response.status_code, 200, "Failed to access user preferences.")
+            preferences_data = preferences_response.json()
+            self.assertTrue('payload' in preferences_data, "Preferences data not found in the response")
+        else:
+            self.fail("Access token not obtained from login.")
+         
+         
+    def test_saved_locations_add(self):
+        """Test adding or updating a user's saved location."""
+        if self.access_token:
+            locations_url = f"{self.base_url}/api/user/savedlocations"
+            headers = {'Authorization': f'Bearer {self.access_token}'}
+            location_data = {
+                "latitude": "35.6895",
+                "longitude": "139.6917",
+                "location_name": "Tokyo Tower"
+            }
+            response = requests.post(locations_url, headers=headers, json=location_data)
+            self.assertEqual(response.status_code, 200, "Failed to add or update saved locations.")
+            self.assertIn("User saved locations updated or added", response.json()['message'], "Incorrect response message for saved locations")   
+           
+    def test_delete_saved_location(self):
+        """Test deleting a user's saved location."""
+        if self.access_token:
+            delete_url = f"{self.base_url}/api/user/savedlocations"
+            headers = {'Authorization': f'Bearer {self.access_token}'}
+            location_data = {
+                "location_name": "Tokyo Tower"  # Specify the location name that exists and is to be deleted
+            }
+            response = requests.delete(delete_url, headers=headers, json=location_data)
+            self.assertEqual(response.status_code, 200, "Failed to delete saved location.")
+            self.assertIn("Location deleted successfully", response.json()['message'], "Incorrect response message for deleting location")
+        else:
+            self.fail("Access token not obtained from login.")
+            
+                   
 if __name__ == '__main__':
     unittest.main()
