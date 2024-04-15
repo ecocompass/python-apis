@@ -321,8 +321,10 @@ def get_route():
         'startCoordinates': start_coordinates,
         'endCoordinates': end_coordinates
     }
-    
+    print("relaying routing request to routing engine") 
+    print(f"params: {forward_params}")
     response = requests.get(FORWARD_URL + "/api/routes", params=forward_params)
+    print(f"engine response: {response.status_code}")
 
     return jsonify(response.json()), response.status_code
 
@@ -336,7 +338,10 @@ def get_route2():
         'startCoordinates': start_coordinates,
         'endCoordinates': end_coordinates
     }
+    print("relaying routing2 request to routing engine")
+    print(f"params: {forward_params}")
     response = requests.get(FORWARD_URL + "/api/routes2", params=forward_params)
+    print(f"engine response: {response.status_code}")
 
     return jsonify(response.json()), response.status_code
 
