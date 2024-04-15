@@ -1,3 +1,4 @@
+import datetime
 import unittest
 import json
 import requests
@@ -8,11 +9,11 @@ class TestUserFlow(unittest.TestCase):
         self.base_url = "http://prod.ecocompass.live"
         # Use the same user details as you would in Postman for consistency
         self.test_user = {
-            "username": "prhtiu jiob",  # Make sure this username adheres to your API's format requirements
-            "email": "h793@example.com",
+            "username": "prhtgh1diqiue7 jiob",  # Make sure this username adheres to your API's format requirements
+            "email": "h30@example.com",
             "password": "password123"
         }
-        self.access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTcxMjk1NTk4MCwianRpIjoiZGEzYjY5NzMtYjdiMC00MzU1LTk4OWItMmZjNzk3OTM5N2E2IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6eyJlbWFpbCI6ImhpNkBleGFtcGxlLmNvbSIsInVzZXJJRCI6NjV9LCJuYmYiOjE3MTI5NTU5ODAsImNzcmYiOiIyMjg2ZjM1ZC03OTUyLTRmNWUtOWQ1YS01ZTRlMDcxYzA4ODEiLCJleHAiOjE3MTI5NTk1ODB9.v1PQ3se200s9eVei1uqb8-mEICuxOfNgmwmI8DMN4zQ" 
+        self.access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTcxMzE4NTU1OSwianRpIjoiMzEzMWRlN2UtM2E0Yi00NDQ1LTkyNTEtYmE0MjBlOTQ2MWE5IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6eyJlbWFpbCI6ImhpNkBleGFtcGxlLmNvbSIsInVzZXJJRCI6NjV9LCJuYmYiOjE3MTMxODU1NTksImNzcmYiOiI1OGFlYjMyNi0zMDJjLTRlZWEtOTQxNC05MThkNmMxZjllZjIiLCJleHAiOjE3MTMxODkxNTl9.ssYPrzfIkIwYVcpI8nN5ZgYTp_5aVkRP5BN5ja70lf4" 
 
     def test_signup_and_log9in(self):
         # Signup
@@ -90,6 +91,61 @@ class TestUserFlow(unittest.TestCase):
         else:
             self.fail("Access token not obtained from login.")
             
-                   
+                      
+    def test_user_trips_get(self):
+        """Test retrieving user trips using the JWT token obtained from login."""
+        trips_url = f"{self.base_url}/api/user/trips"
+        headers = {'Authorization': f'Bearer {self.access_token}'}
+        trips_response = requests.get(trips_url, headers=headers)
+        if trips_response.status_code == 404:
+            self.assertIn("No trips found", trips_response.json()['message'], "No trips found message not as expected")
+        else:
+            self.assertEqual(trips_response.status_code, 200, "Failed to access user trips.")
+            trips_data = trips_response.json()
+            self.assertTrue('saved_locations' in trips_data, "Trips data not found in response")
+
+
+    def test_user_routes_add_and_get(self):
+        """Test adding and retrieving user routes using the JWT token."""
+        routes_url = f"{self.base_url}/api/user/routes"
+        headers = {'Authorization': f'Bearer {self.access_token}'}
+        # Add a route
+        route_data = {
+            "route": "Route Details",
+            "route_name": "Home to Work"
+        }
+        add_response = requests.post(routes_url, headers=headers, json=route_data)
+        self.assertEqual(add_response.status_code, 200, "Failed to add route.")
+
+        # Get routes
+        get_response = requests.get(routes_url, headers=headers)
+        self.assertEqual(get_response.status_code, 200, "Failed to retrieve routes.")
+        routes_data = get_response.json()
+        self.assertIn("payload", routes_data, "Routes data not found in response")
+
+    def test_user_goals_operations(self):
+        """Test adding, retrieving, and deleting user goals using the JWT token."""
+        goals_url = f"{self.base_url}/api/user/goals"
+        headers = {'Authorization': f'Bearer {self.access_token}'}
+        # Add a goal
+        goal_data = {
+            "type": "Walking",
+            "target": 10000,
+            "created_at": int(datetime.datetime.now().timestamp()),
+            "expiry": int((datetime.datetime.now() + datetime.timedelta(days=30)).timestamp())
+        }
+        add_goal_response = requests.post(goals_url, headers=headers, json=[goal_data])
+        self.assertEqual(add_goal_response.status_code, 200, "Failed to add goal.")
+
+        # Get goals
+        get_goals_response = requests.get(goals_url, headers=headers)
+        self.assertEqual(get_goals_response.status_code, 200, "Failed to retrieve goals.")
+        goals_data = get_goals_response.json()
+        self.assertIn("payload", goals_data, "Goals data not found in response")
+
+        # Delete a goal
+        delete_goal_response = requests.delete(goals_url, headers=headers, json={"type": "Walking"})
+        self.assertEqual(delete_goal_response.status_code, 200, "Failed to delete goal.")
+
 if __name__ == '__main__':
     unittest.main()
