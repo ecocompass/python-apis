@@ -52,7 +52,7 @@ def databaseconn():
         
 app = Flask(__name__)
 ACCESS_EXPIRES = timedelta(hours=JWT_ACCESS_TOKEN_EXPIRE_HOURS)
-FORWARD_URL = "http://routing-engine-service.default.svc.cluster.local"
+FORWARD_URL = "http://routing-engine-service.default.svc.cluster.local:8080"
 
 app.config['JWT_SECRET_KEY'] = JWT_SECRET_KEY
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = ACCESS_EXPIRES
