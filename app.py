@@ -457,6 +457,8 @@ def awards_from_goals(userID, start_time):
         for goal in goals:
             goal_type = goal[1]
             goal_target = goal[2]
+            # logging.info(goal_type)
+            # logging.info(goal_target)
             # , goal_target, _, _, _ = goal
             if goal_type == 'walking' and goal_walking == False:
                 if walking >= goal_target:
@@ -465,7 +467,8 @@ def awards_from_goals(userID, start_time):
                     change = True
             elif goal_type == 'cycling' and goal_cycling == False:
                 if cycling >= goal_target:
-                    cycling_awards.append(f"Achievement Unlocked: Reached cycling goal of {goal_target} km.")
+                    # logging.info(f"Achievement Unlocked: Reached biking goal of {goal_target} km.")
+                    cycling_awards.append(f"Achievement Unlocked: Reached biking goal of {goal_target} km.")
                     goal_cycling = True
                     change = True
             elif goal_type == 'public_transport' and goal_public_transport == False:
@@ -496,15 +499,18 @@ def awards_from_goals(userID, start_time):
 
         payload = {}
         if cycling_awards:
-            payload["awards for cycling"] = cycling_awards
+            payload["awards for biking"] = cycling_awards
         if walking_awards:
             payload["awards for walking"] = walking_awards
         if public_transport_awards:
             payload["awards for public transport"] = public_transport_awards
+    
         if payload:
+            # print(payload)
             # logging.info(payload)
-            return {"awards": payload}
+            return payload
         else:
+            # logging.info("No awards")
             return False
     except Exception as e:
         logging.error(f" in the awards: {e}")
@@ -537,7 +543,7 @@ def save_weekly_data(userID, start_time, walking, cycling, distance_bus, distanc
                 public_transport = weekly_user_stats.public_transport + EXCLUDED.public_transport,
                 cycling = weekly_user_stats.cycling + EXCLUDED.cycling,
                 walking = weekly_user_stats.walking + EXCLUDED.walking,
-                week_start_date = weekly_user_stats.week_start_date,
+                week_start_date = EXCLUDED.week_start_date,
                 user_id = weekly_user_stats.user_id
         """
         cursor.execute(insert_query, (userID, week_start_date, str(public_transport), cycling, walking, distance_car))
@@ -623,25 +629,29 @@ def user_trips_add():
                                             distance_car, distance_luas))
         except Exception as e:
             logging.error(f"An error occurred: {e}")
-            return jsonify({"message": "Database Error"}), 500
+            return jsonify({"payload": "Database Error"}), 500
         else:
             conn.commit()
             conn.close()
         # logging.info(userID, start_time_weekly, distance_walk, distance_bike, distance_bus, distance_dart, distance_car, distance_luas)
         weekly_data = save_weekly_data(userID, start_time_weekly, distance_walk, distance_bike, distance_bus, distance_dart, distance_car, distance_luas)
         if weekly_data == True:
+            logging.info("weekly data saved in db")
             awards_result = awards_from_goals(userID, start_time_weekly)
+
             # logging.info(awards_result)
             if awards_result:
-                return jsonify({"message": "Saved Trips", "payload": awards_result}), 200
+                # return jsonify({"message": "Saved Trips", "payload": awards_result}), 200
+                return jsonify({"payload": {"message": "Saved Trips", "awards": awards_result}}), 200
+            else:
+                return jsonify({"payload": "Saved Trips"}), 200
         else:
             logging.info("unable to save weekly data in db")
-        
-        return jsonify({"message": "Saved Trips"}), 200
+            return jsonify({"payload": "Saved Trips"}), 200
     except Exception as e:
         logging.error(f" in the trips: {e}")
         conn.close()
-        return jsonify({"message": "Unable to add to DB"}), 500    
+        return jsonify({"payload": "Unable to add to DB"}), 500    
     
 @app.route("/api/user/trips", methods=["GET"])
 @jwt_required()
@@ -906,13 +916,59 @@ def user_goals_get():
     identities = get_jwt_identity()
     # Extract email and userID from the identities dictionary
     # email = identities.get("email")
+    trip_start_date = datetime.datetime.fromtimestamp(int(request.args.get('start_time')))
+    week_start_date = get_week_start_date(trip_start_date)
+    logging.info(week_start_date)
     userID = identities.get("userID")
     try:
         cursor = conn.cursor()
         # Check if the user exists
         cursor.execute("SELECT * FROM goals WHERE user_id = %s", (userID,))
         saved_goals = cursor.fetchall()
-        # logging.info(saved_locations)
+        # logging.info(saved_goals)
+        try:
+            cursor.execute("SELECT * FROM weekly_user_stats WHERE user_id = %s AND week_start_date = %s",
+                        (userID, week_start_date))
+            stats = cursor.fetchone()
+            logging.info(stats)
+            public_transport = stats[3]
+            cycling = stats[4]
+            walking = stats[5]
+            if saved_goals:
+                goals_data = []
+                for goal in saved_goals:
+                    if goal[1] == "walking":
+                        goal_data = {
+                            "type": goal[1],
+                            "target": goal[2],
+                            "current": walking,
+                            "created_at": int(datetime.datetime.fromisoformat(str(goal[3])).timestamp()),
+                            "expiry": int(datetime.datetime.fromisoformat(str(goal[4])).timestamp())
+                        }
+                    elif goal[1] == "cycling":
+                        goal_data = {
+                            "type": goal[1],
+                            "target": goal[2],
+                            "current": cycling,
+                            "created_at": int(datetime.datetime.fromisoformat(str(goal[3])).timestamp()),
+                            "expiry": int(datetime.datetime.fromisoformat(str(goal[4])).timestamp())
+                        }
+                    elif goal[1] == "public_transport":
+                        goal_data = {
+                            "type": goal[1],
+                            "target": goal[2],
+                            "current": public_transport,
+                            "created_at": int(datetime.datetime.fromisoformat(str(goal[3])).timestamp()),
+                            "expiry": int(datetime.datetime.fromisoformat(str(goal[4])).timestamp())
+                        }
+                    goals_data.append(goal_data)
+                conn.close()
+                return jsonify({"payload": goals_data}), 200
+            else:
+                conn.close()
+                return jsonify({"payload": False}), 200
+        except Exception as e:
+            logging.error(f": {e}")
         if saved_goals:
             goals_data = []
             for goal in saved_goals:
@@ -926,13 +982,12 @@ def user_goals_get():
             conn.close()
             return jsonify({"payload": goals_data}), 200
         else:
-            # No saved locations found for the user
             conn.close()
             return jsonify({"payload": False}), 200
     except Exception as e:
         logging.error(f": {e}")
         conn.close()
-        return jsonify({"message": "Unable to get saved routes"}), 500
+        return jsonify({"message": "Unable to get saved goals"}), 500
 
 @app.route("/api/user/goals", methods=["DELETE"])
 @jwt_required()
@@ -961,7 +1016,7 @@ def user_goals_del():
     except Exception as e:
         logging.error(f": {e}")
         conn.close()
-        return jsonify({"message": "Unable to delete route"}), 500
+        return jsonify({"message": "Unable to delete goal"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port= 5050)
+    app.run(debug=False, host="0.0.0.0", port= 5050)
