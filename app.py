@@ -430,7 +430,6 @@ def awards_from_goals(userID, start_time):
         cursor = conn.cursor()
         cursor.execute("SELECT * FROM goals WHERE user_id = %s", (userID,))
         goals = cursor.fetchall()
-        # logging.info(goals)
         # logging.info(goals, file=sys.stderr)
         cursor.execute("SELECT * FROM weekly_user_stats WHERE user_id = %s AND week_start_date = %s",
                        (userID, week_start_date))
@@ -532,7 +531,7 @@ def save_weekly_data(userID, start_time, walking, cycling, distance_bus, distanc
         return False
     trip_start_date = datetime.datetime.fromtimestamp(int(start_time))
     week_start_date = get_week_start_date(trip_start_date)
-    logging.info(week_start_date)
+    # logging.info(week_start_date)
     public_transport = float(distance_bus) + float(distance_dart) + float(distance_luas)
     try:
         cursor = conn.cursor()
@@ -639,7 +638,8 @@ def user_trips_add():
         if weekly_data == True:
             logging.info("weekly data saved in db")
             awards_result = awards_from_goals(userID, start_time_weekly)
-            logging.info(awards_result)
+
+            # logging.info(awards_result)
             if awards_result:
                 # return jsonify({"message": "Saved Trips", "payload": awards_result}), 200
                 return jsonify({"payload": {"message": "Saved Trips", "awards": awards_result}}), 200
@@ -969,7 +969,6 @@ def user_goals_get():
                 return jsonify({"payload": False}), 200
         except Exception as e:
             logging.error(f": {e}")
-
         if saved_goals:
             goals_data = []
             for goal in saved_goals:
@@ -1020,4 +1019,4 @@ def user_goals_del():
         return jsonify({"message": "Unable to delete goal"}), 500
 
 if __name__ == '__main__':
-    app.run(debug=True, host="0.0.0.0", port= 5050) 
+    app.run(debug=False, host="0.0.0.0", port= 5050)

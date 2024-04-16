@@ -1,186 +1,151 @@
-import pytest
-from app import app
-from unittest.mock import patch
-
-@pytest.fixture
-def client():
-    app.config['TESTING'] = True
-    with app.test_client() as client:
-        yield client
-
-def test_signup_existing_user(client):
-    # Define a test user that already exists in the database
-    existing_user = {
-        'username': 'Jane Doe',
-        'password': 'password123',
-        'email': 'jane@example.com'
-    } 
-    # Make a POST request to the signup endpoint to create the user
-    client.post('/api/auth/signup', json=existing_user)
-    
-    # Make another POST request with the same email
-    response = client.post('/api/auth/signup', json=existing_user)
-    # Assert that the response status code is 409 (conflict)
-    assert response.status_code == 409
-    # Assert that the response contains the expected message
-    assert response.json['message'] == 'User already exists'
-
-def test_invalid_username_format(client):
-    # Define a test user with an invalid username format
-    invalid_user = {
-        'username': 'InvalidUsernameFormat',
-        'password': 'password123',
-        'email': 'invalid@example.com'
-    }
-    
-    # Make a POST request to the signup endpoint with the invalid user
-    response = client.post('/api/auth/signup', json=invalid_user)
-    
-    # Assert that the response status code is 400
-    assert response.status_code == 400
-
-    # Assert that the response contains the expected message
-    assert response.json['message'] == 'Invalid username format'
-
-def test_login_success(client):
-    # Define a test user
-    test_user = {
-        'email': 'test@test.com',
-        'password': 'test_password'
-    }
-    
-    # Make a POST request to the login endpoint
-    response = client.post('/api/auth/login', json=test_user)
-    
-    # Assert that the response status code is 200
-    assert response.status_code == 200
-
-    # Assert that the response contains the expected message
-    assert response.json['message'] == 'Login successful'
-    
-    # Assert that the response contains an access token
-    assert 'access_token' in response.json
-
-def test_missing_username_field(client):
-    # Define a test user with missing username field
-    missing_username_user = {
-        'password': 'password123',
-        'email': 'john@example.com'
-    }
-    # Make a POST request to the signup endpoint with the user missing the username field
-    response = client.post('/api/auth/signup', json=missing_username_user)
-    
-    # Assert that the response status code is 400
-    assert response.status_code == 400
-
-    # Assert that the response contains the expected message
-    assert response.json['message'] == 'Empty Username'
-
-def test_login_success(client):
-    # Define a test user
-    test_user = {
-        'email': 'test@test.com',
-        'password': 'test_password'
-    }
-    
-    # Make a POST request to the login endpoint
-    response = client.post('/api/auth/login', json=test_user)
-    
-    # Assert that the response status code is 200
-    assert response.status_code == 200
-
-    # Assert that the response contains the expected message
-    assert response.json['message'] == 'Login successful'
-    
-    # Assert that the response contains an access token
-    assert 'access_token' in response.json
-
-def test_login_invalid_email(client):
-    # Define a test user with an invalid email
-    invalid_email_user = {
-        'email': 'test@testtest.com',
-        'password': 'test_password'
-    }
-    
-    # Make a POST request to the login endpoint with the invalid email user
-    response = client.post('/api/auth/login', json=invalid_email_user)
-    
-    # Assert that the response status code is 401
-    assert response.status_code == 401
-
-    # Assert that the response contains the expected message
-    assert response.json['message'] == 'Invalid email or password'
-
-def test_login_invalid_password(client):
-    # Define a test user with invalid password
-    invalid_password_user = {
-        'email': 'test@test.com',
-        'password': 'pass'
-    }
-    
-    # Make a POST request to the login endpoint with the invalid password user
-    response = client.post('/api/auth/login', json=invalid_password_user)
-    
-    # Assert that the response status code is 401
-    assert response.status_code == 401
-
-    # Assert that the response contains the expected message
-    assert response.json['message'] == 'Invalid email or password'
-
-def test_login_missing_email(client):
-    # Define a test user with missing email
-    missing_email_user = {
-        'password': 'password123'
-    }
-    
-    # Make a POST request to the login endpoint with the user missing the email field
-    response = client.post('/api/auth/login', json=missing_email_user)
-    
-    # Assert that the response status code is 401
-    assert response.status_code == 400
-
-    # Assert that the response contains the expected message
-    assert response.json['message'] == 'Empty email or password'
-
-@pytest.fixture
-def jwt_token():
-    # Generate a JWT token with a mock payload
-    payload = {"userID": 123}
-    secret_key = "your_secret_key"  # Replace with your actual secret key
-    token = jwt.encode(payload, secret_key, algorithm="HS256")
-    return token
+import datetime
+import unittest
+import json
+import requests
 
 
-def test_user_preferences_add(client, mocker):
-    # Mocking database connection
-    mocker.patch("app.databaseconn")
+class TestUserFlow(unittest.TestCase):
+    def setUp(self):
+        self.base_url = "http://prod.ecocompass.live"
+        # Use the same user details as you would in Postman for consistency
+        self.test_user = {
+            "username": "prhtgh1diqiue7 jiob",  # Make sure this username adheres to your API's format requirements
+            "email": "h30@example.com",
+            "password": "password123"
+        }
+        self.access_token = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTcxMzE4NTU1OSwianRpIjoiMzEzMWRlN2UtM2E0Yi00NDQ1LTkyNTEtYmE0MjBlOTQ2MWE5IiwidHlwZSI6ImFjY2VzcyIsInN1YiI6eyJlbWFpbCI6ImhpNkBleGFtcGxlLmNvbSIsInVzZXJJRCI6NjV9LCJuYmYiOjE3MTMxODU1NTksImNzcmYiOiI1OGFlYjMyNi0zMDJjLTRlZWEtOTQxNC05MThkNmMxZjllZjIiLCJleHAiOjE3MTMxODkxNTl9.ssYPrzfIkIwYVcpI8nN5ZgYTp_5aVkRP5BN5ja70lf4" 
 
-    # Mocking JWT identity
-    mocker.patch("app.get_jwt_identity", return_value={"userID": 123})
+    def test_signup_and_log9in(self):
+        # Signup
+        signup_url = f"{self.base_url}/api/auth/signup"
+        signup_response = requests.post(signup_url, json=self.test_user)
+        self.assertEqual(signup_response.status_code, 201, "Signup failed: {}".format(signup_response.json()))
+        self.assertIn("User signed up", signup_response.json()['message'], "Signup message not as expected")
 
-    # Mocking cursor execution
-    cursor_mock = mocker.Mock()
-    mocker.patch("app.databaseconn.cursor", return_value=cursor_mock)
+        # Login
+        login_url = f"{self.base_url}/api/auth/login"
+        login_data = {
+            "email": self.test_user["email"],
+            "password": self.test_user["password"]
+        }
+        
+        login_response = requests.post(login_url, json=login_data)
+        self.access_token = login_response.json()['access_token']  # Save the access token
+        self.assertEqual(login_response.status_code, 200, "Login failed: {}".format(login_response.json()))
+        self.assertIn("Login successful", login_response.json()['message'], "Login message not as expected")
+        self.assertTrue('access_token' in login_response.json(), "Access token not found in login response")
+        print(self.access_token)
 
-    # Mocking execute and commit methods
-    cursor_mock.execute.return_value = None
-    cursor_mock.commit.return_value = None
+    def test_user_profile(self):
+        print(self.access_token)
+        """Test retrieving the user profile using the JWT token obtained from login."""
+        if self.access_token:
+            profile_url = f"{self.base_url}/api/user/profile"
+            headers = {'Authorization': f'Bearer {self.access_token}'}
+            profile_response = requests.get(profile_url, headers=headers)
+            self.assertEqual(profile_response.status_code, 200, "Failed to access user profile.")
+            profile_data = profile_response.json()
+            self.assertIn("first_name", profile_data, "First name not found in profile data")
+            self.assertIn("email", profile_data, "Email not found in profile data")
+        else:
+            self.fail("Access token not obtained from login.")
 
-    # Test data
-    test_data = {
-        "public_transport": 1,
-        "bike_weight": 0,
-        "walking_weight": 1,
-        "driving_weight": 1
-    }
+    def test_user_preferences(self):
+        """Test retrieving the user preferences using the JWT token obtained from login."""
+        if self.access_token:
+            preferences_url = f"{self.base_url}/api/user/preferences"
+            headers = {'Authorization': f'Bearer {self.access_token}'}
+            preferences_response = requests.get(preferences_url, headers=headers)
+            self.assertEqual(preferences_response.status_code, 200, "Failed to access user preferences.")
+            preferences_data = preferences_response.json()
+            self.assertTrue('payload' in preferences_data, "Preferences data not found in the response")
+        else:
+            self.fail("Access token not obtained from login.")
+         
+         
+    def test_saved_locations_add(self):
+        """Test adding or updating a user's saved location."""
+        if self.access_token:
+            locations_url = f"{self.base_url}/api/user/savedlocations"
+            headers = {'Authorization': f'Bearer {self.access_token}'}
+            location_data = {
+                "latitude": "35.6895",
+                "longitude": "139.6917",
+                "location_name": "Tokyo Tower"
+            }
+            response = requests.post(locations_url, headers=headers, json=location_data)
+            self.assertEqual(response.status_code, 200, "Failed to add or update saved locations.")
+            self.assertIn("User saved locations updated or added", response.json()['message'], "Incorrect response message for saved locations")   
+           
+    def test_delete_saved_location(self):
+        """Test deleting a user's saved location."""
+        if self.access_token:
+            delete_url = f"{self.base_url}/api/user/savedlocations"
+            headers = {'Authorization': f'Bearer {self.access_token}'}
+            location_data = {
+                "location_name": "Tokyo Tower"  # Specify the location name that exists and is to be deleted
+            }
+            response = requests.delete(delete_url, headers=headers, json=location_data)
+            self.assertEqual(response.status_code, 200, "Failed to delete saved location.")
+            self.assertIn("Location deleted successfully", response.json()['message'], "Incorrect response message for deleting location")
+        else:
+            self.fail("Access token not obtained from login.")
+            
+                      
+    def test_user_trips_get(self):
+        """Test retrieving user trips using the JWT token obtained from login."""
+        trips_url = f"{self.base_url}/api/user/trips"
+        headers = {'Authorization': f'Bearer {self.access_token}'}
+        trips_response = requests.get(trips_url, headers=headers)
+        if trips_response.status_code == 404:
+            self.assertIn("No trips found", trips_response.json()['message'], "No trips found message not as expected")
+        else:
+            self.assertEqual(trips_response.status_code, 200, "Failed to access user trips.")
+            trips_data = trips_response.json()
+            self.assertTrue('saved_locations' in trips_data, "Trips data not found in response")
 
-    # Sending POST request
-    response = client.post("/api/user/preferences", json=test_data)
 
-    # Asserting response
-    assert response.status_code == 200
-    assert response.json == {"message": "User preferences updated or added"}
+    def test_user_routes_add_and_get(self):
+        """Test adding and retrieving user routes using the JWT token."""
+        routes_url = f"{self.base_url}/api/user/routes"
+        headers = {'Authorization': f'Bearer {self.access_token}'}
+        # Add a route
+        route_data = {
+            "route": "Route Details",
+            "route_name": "Home to Work"
+        }
+        add_response = requests.post(routes_url, headers=headers, json=route_data)
+        self.assertEqual(add_response.status_code, 200, "Failed to add route.")
 
-    # Asserting database interactions
-    cursor_mock.execute.assert_called_once()
-    cursor_mock.commit.assert_called_once()
+        # Get routes
+        get_response = requests.get(routes_url, headers=headers)
+        self.assertEqual(get_response.status_code, 200, "Failed to retrieve routes.")
+        routes_data = get_response.json()
+        self.assertIn("payload", routes_data, "Routes data not found in response")
+
+    def test_user_goals_operations(self):
+        """Test adding, retrieving, and deleting user goals using the JWT token."""
+        goals_url = f"{self.base_url}/api/user/goals"
+        headers = {'Authorization': f'Bearer {self.access_token}'}
+        # Add a goal
+        goal_data = {
+            "type": "Walking",
+            "target": 10000,
+            "created_at": int(datetime.datetime.now().timestamp()),
+            "expiry": int((datetime.datetime.now() + datetime.timedelta(days=30)).timestamp())
+        }
+        add_goal_response = requests.post(goals_url, headers=headers, json=[goal_data])
+        self.assertEqual(add_goal_response.status_code, 200, "Failed to add goal.")
+
+        # Get goals
+        get_goals_response = requests.get(goals_url, headers=headers)
+        self.assertEqual(get_goals_response.status_code, 200, "Failed to retrieve goals.")
+        goals_data = get_goals_response.json()
+        self.assertIn("payload", goals_data, "Goals data not found in response")
+
+        # Delete a goal
+        delete_goal_response = requests.delete(goals_url, headers=headers, json={"type": "Walking"})
+        self.assertEqual(delete_goal_response.status_code, 200, "Failed to delete goal.")
+
+if __name__ == '__main__':
+    unittest.main()
