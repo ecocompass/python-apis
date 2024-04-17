@@ -8,7 +8,7 @@ WORKDIR /app
 COPY app.py /app/
 
 # Install Flask and other dependencies
-RUN pip install --no-cache-dir flask flask_jwt_extended psycopg2-binary redis requests scipy json
+RUN pip install --no-cache-dir flask flask_jwt_extended psycopg2-binary redis requests scipy
 
 # Expose port 5000
 EXPOSE 6969
