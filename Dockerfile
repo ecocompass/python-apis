@@ -6,7 +6,7 @@ WORKDIR /app
 
 # Copy the Flask application code into the container
 COPY app.py /app/
-
+COPY consolidated_gtfs.json /app/
 # Install Flask and other dependencies
 RUN pip install --no-cache-dir flask flask_jwt_extended psycopg2-binary redis requests scipy
 
