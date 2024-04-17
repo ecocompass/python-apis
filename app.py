@@ -1,5 +1,5 @@
 import os
-
+from scipy.spatial import KDTree
 from flask import Flask, jsonify, request
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt, get_jwt_identity
 from werkzeug.security import check_password_hash, generate_password_hash
@@ -1018,6 +1018,153 @@ def user_goals_del():
         logging.error(f": {e}")
         conn.close()
         return jsonify({"message": "Unable to delete goal"}), 500
+    
+
+kd_trees_global = {}
+nodes_global = {}
+
+def build_kd_tree(node_map, map_type):
+    global kd_trees
+    global nodes
+    try:
+        # print("[Build KD Tree for nodes]")
+        logging.info("Building KD tree for nodes")
+        # print(node_map)
+        # Extract node keys and their corresponding lat and lon to build the kd-tree
+        # nodes = list(node_map.keys())
+        coordinates = [(key[0], key[1]) for key in node_map]
+        # Construct KDTree with the coordinates
+        tree = KDTree(coordinates)
+        if map_type == 'bus':
+            kd_trees_global['bus'] = tree
+            nodes_global['bus'] = node_map
+        elif map_type == 'luas':
+            kd_trees_global['luas'] = tree
+            nodes_global['luas'] = node_map
+        logging.info("Built KD tree")
+        return True
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+        return False
+
+@app.route("/api/kdtree", methods=["POST"])
+def api_hit():
+    try:
+        bus_map = request.json.get('bus_map')
+        luas_map = request.json.get('luas_map')  
+        # logging.info(f"bus_map: {bus_map}")
+        # logging.info(type(bus_map))
+        # logging.info(f"luas_map: {luas_map}")
+        responses = {}
+        if bus_map:
+            # Build KD tree for bus nodes
+            # logging.info("creating bus tree")
+            resp_bus = build_kd_tree(bus_map, map_type='bus')
+            # logging.info("got the bus tree and nodes")
+            if resp_bus:
+                responses['bus'] = {"message": "KD tree for bus nodes built successfully"}
+            else:
+                return jsonify({"error": "Failed to build KD tree for bus nodes"}), 500
+        if luas_map:
+            # Build KD tree for car nodes
+            resp_luas = build_kd_tree(luas_map, map_type='luas')
+            if resp_luas:
+                responses['luas'] = {"message": "KD tree for luas nodes built successfully"}
+            else:
+                return jsonify({"error": "Failed to build KD tree for luas nodes"}), 500
+
+        return jsonify(responses), 200
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+def get_nearest_nodes(root, mode, k=25):
+    global kd_trees_global
+    global nodes_global
+    logging.info("finding nearest nodes")
+    logging.info(nodes_global)
+    if mode == 'bus':
+        tree = kd_trees_global.get('bus')
+        nodes = nodes_global.get('bus')
+        logging.info(tree)
+        logging.info(nodes)
+    elif mode == 'luas':
+        tree = kd_trees_global.get('luas')
+        nodes = nodes_global.get('luas')
+    # Find the k nearest points (nodes) to the root. The KDTree returns a tuple (distances, indices)
+    _, indices = tree.query((root[0], root[1]), k=k)
+    # Retrieve the node keys using the indices
+    nearest_node_keys = [nodes[i] for i in indices]
+    return nearest_node_keys
+
+@app.route("/api/get_nearest_nodes", methods=["GET"])
+def get_nearest_nodes_api():
+    try:
+        # Get parameters from the request
+        k = int(request.args.get('k', 25))
+        lat = float(request.args.get('lat'))
+        lon = float(request.args.get('lon'))
+        mode = request.args.get('mode')
+
+        # Fetch the appropriate KD tree and nodes based on your application logic
+        if mode == 'bus':
+            nearest_nodes = get_nearest_nodes((lat, lon),mode, k=k)
+        elif mode == 'luas':
+            nearest_nodes = get_nearest_nodes((lat, lon),mode, k=k)
+        else:
+            return jsonify({"error": "Invalid mode"}), 400
+
+        if nearest_nodes:
+            return jsonify({"nearest_nodes": nearest_nodes}), 200
+        else:
+            return jsonify({"error": "KD tree or nodes not found for the given type"}), 404
+
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
+        return jsonify({"error": str(e)}), 500
+    
+
+def nearest_node_or_nearest_neighbor(lat, lon, mode):
+    global kd_trees_global
+    global nodes_global
+    if (lat, lon) in nodes_global:
+        return [(lat, lon)]
+    if mode == 'bus':
+        tree = kd_trees_global.get('bus')
+        nodes = nodes_global.get('bus')
+    elif mode == 'luas':
+        tree = kd_trees_global.get('luas')
+        nodes = nodes_global.get('luas')
+    else:
+        return False
+    # Query the KDTree for the node closest to the given latitude-longitude pair
+    dist, idx = tree.query([(lat, lon)], k=2)
+    # Otherwise, return the nearest neighbor
+    nearest_idx = idx[0][0]
+    nearest_neighbor = (nodes[nearest_idx][0], nodes[nearest_idx][1])
+    return nearest_neighbor
+    
+@app.route("/api/get_nearest_node", methods=["GET"])
+def get_nearest_node_or_neighbor_api():
+    try:
+        # Get parameters from the request
+        lat = float(request.args.get('lat'))
+        lon = float(request.args.get('lon'))
+        mode = request.args.get('mode')
+        if mode == 'bus':
+            result = nearest_node_or_nearest_neighbor(lat, lon, mode)
+        elif mode == 'luas':
+            result = nearest_node_or_nearest_neighbor(lat, lon, mode)
+        else:
+            return jsonify({"error": "Invalid mode"}), 400
+
+        if result:
+            return jsonify({"result": result}), 200
+        else:
+            return jsonify({"error": "KD tree or nodes not found for the given mode"}), 404
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 if __name__ == '__main__':
     app.run(debug=True, host="0.0.0.0", port= 5050) 
