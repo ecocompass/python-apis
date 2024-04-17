@@ -1080,13 +1080,13 @@ def api_hit():
 def get_nearest_nodes(root, mode, k=25):
     global kd_trees_global
     global nodes_global
-    logging.info("finding nearest nodes")
-    logging.info(nodes_global)
+    # logging.info("finding nearest nodes")
+    # logging.info(nodes_global)
     if mode == 'bus':
         tree = kd_trees_global.get('bus')
         nodes = nodes_global.get('bus')
-        logging.info(tree)
-        logging.info(nodes)
+        # logging.info(tree)
+        # logging.info(nodes)
     elif mode == 'luas':
         tree = kd_trees_global.get('luas')
         nodes = nodes_global.get('luas')
