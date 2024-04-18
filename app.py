@@ -1,6 +1,6 @@
 import os
 from scipy.spatial import KDTree
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt, get_jwt_identity
 from werkzeug.security import check_password_hash, generate_password_hash
 from datetime import timedelta
@@ -344,6 +344,36 @@ def get_route2():
     response = requests.get(FORWARD_URL + "/api/routes2", params=forward_params)
     logging.info(f"engine response: {response.status_code}")
 
+    return jsonify(response.json()), response.status_code
+
+@app.route('/api/transit/incidents', methods=['GET'])
+def get_traffic_incidents():
+    recommendation_id = request.args.get('recommendationId')
+    response = requests.get(FORWARD_URL + "/api/transit/incidents", params={'recommendationId': recommendation_id})
+    logging.info(f"relaying transit incidents request: recommendationId={recommendation_id}")
+    logging.info(f"backend response: {response.status_code}")
+    return jsonify(response.json()), response.status_code
+
+@app.route('/createIncident', methods=['POST'])
+def create_incident():
+    incident_data = request.get_json()
+    response = requests.post(FORWARD_URL + "/createIncident", json=incident_data)
+    logging.info(f"relaying incident creation request: {incident_data}")
+    logging.info(f"backend response: {response.status_code}")
+    return Response(response.text, status=response.status_code, mimetype='application/json')
+
+@app.route('/deleteIncident/<incidentId>', methods=['DELETE'])
+def delete_incident(incidentId):
+    response = requests.delete(FORWARD_URL + f"/deleteIncident/{incidentId}")
+    logging.info(f"relaying delete incident request: incidentId={incidentId}")
+    logging.info(f"backend response: {response.status_code}")
+    return Response(response.text, status=response.status_code, mimetype='application/json')
+
+@app.route('/api/incidents', methods=['GET'])
+def get_all_incidents():
+    response = requests.get(FORWARD_URL + "/api/incidents")
+    logging.info("relaying get all incidents request")
+    logging.info(f"backend response: {response.status_code}")
     return jsonify(response.json()), response.status_code
 
 # for load-balancer healthcheck
