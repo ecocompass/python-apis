@@ -158,5 +158,6 @@ class TestUserFlow(unittest.TestCase):
     #     delete_goal_response = requests.delete(goals_url, headers=headers, json={"type": "Walking"})
     #     self.assertEqual(delete_goal_response.status_code, 200, "Failed to delete goal.")
 
+
 if __name__ == '__main__':
     unittest.main()
