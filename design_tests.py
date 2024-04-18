@@ -103,6 +103,66 @@ def test_token_revocation():
     protected_response_after_logout = protected_api_call(token)
     assert protected_response_after_logout.status_code == 401
 
+# create a user for below tests
+username, email, password = generate_random_user()
+
+@pytest.fixture(scope="module")
+def user_token():
+    signup_response = signup_user(email, username, password)
+    assert signup_response.status_code == 201
+    login_response = login_user(email, password)
+    token = login_response.json().get('access_token')
+    return token
+
+@pytest.mark.order(4)
+def test_create_and_get_preferences(user_token):
+    # Use the token to create and retrieve user preferences
+    create_url = f"{BASE_URL}/api/user/preferences"
+    get_url = f"{BASE_URL}/api/user/preferences"
+    headers = {'Authorization': f'Bearer {user_token}'}
+
+    preferences = {
+        "public_transport": 70,
+        "bike_weight": 15,
+        "walking_weight": 10,
+        "driving_weight": 5
+    }
+
+    # Create preferences
+    create_response = requests.post(create_url, json=preferences, headers=headers)
+    assert create_response.status_code == 200
+
+    # Retrieve preferences to verify
+    get_response = requests.get(get_url, headers=headers)
+    assert get_response.status_code == 200
+    assert get_response.json()["payload"]["public_transport"] == preferences["public_transport"]
+
+@pytest.mark.order(5)
+def test_create_and_delete_incident(user_token):
+    # Use the token to create and then delete an incident
+    create_url = f"{BASE_URL}/createIncident"
+    headers = {'Authorization': f'Bearer {user_token}'}
+
+    incident = {
+        "coordinates": [53.272263, -6.256246],
+        "description": "Test crash in Ballinteer",
+        "isJamcident": True,
+        "roadClosed": True
+    }
+
+    # Create an incident
+    create_response = requests.post(create_url, json=incident, headers=headers)
+    assert create_response.status_code == 201
+    incident_id = create_response.json().get("incidentId")
+
+    # Delete the incident
+    delete_url = f"{BASE_URL}/deleteIncident/{incident_id}"
+    delete_response = requests.delete(delete_url, headers=headers)
+    assert delete_response.status_code == 200
+
+username, email, password = generate_random_user()
+
+
 
 if __name__ == "__main__":
     pytest.main(["-v", "--html=report.html"])
