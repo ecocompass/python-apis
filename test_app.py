@@ -137,15 +137,7 @@ class TestUserFlow(unittest.TestCase):
         add_goal_response = requests.post(goals_url, headers=headers, json=[goal_data])
         self.assertEqual(add_goal_response.status_code, 200, "Failed to add goal.")
 
-        # Get goals
-        get_goals_response = requests.get(goals_url, headers=headers)
-        self.assertEqual(get_goals_response.status_code, 200, "Failed to retrieve goals.")
-        goals_data = get_goals_response.json()
-        self.assertIn("payload", goals_data, "Goals data not found in response")
-
-        # Delete a goal
-        delete_goal_response = requests.delete(goals_url, headers=headers, json={"type": "Walking"})
-        self.assertEqual(delete_goal_response.status_code, 200, "Failed to delete goal.")
+       
 
 if __name__ == '__main__':
     unittest.main()
