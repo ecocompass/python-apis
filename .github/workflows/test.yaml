@@ -1,5 +1,16 @@
 name: Run unit tests
 
+on:
+  workflow_dispatch:
+    inputs:
+        logLevel:
+          description: 'Log level'
+          required: true
+          default: 'info'
+        tags:
+          description: 'Test scenario tags'
+          required: false
+
 jobs:
   test_unit:
     runs-on: ubuntu-latest
