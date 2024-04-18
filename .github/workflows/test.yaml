@@ -1,0 +1,41 @@
+name: Run unit tests
+
+on:
+  workflow_dispatch:
+    inputs:
+        logLevel:
+          description: 'Log level'
+          required: true
+          default: 'info'
+        tags:
+          description: 'Test scenario tags'
+          required: false
+
+jobs:
+  test_unit:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+
+      - name: PIP packages
+        run: pip install requests unittest2 
+      
+      - name: Unit tests
+        run: python -m unittest test_app.py
+  
+  test_design:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@v3
+      
+      - uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: PIP packages
+        run: pip install requests pytest pytest-html 
+      
+      - name: Design tests
+        run: python -m pytest design_tests.py --html=report.html
